@@ -4,31 +4,84 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>السائق - مشوارك</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="style.css">
+  <meta name="theme-color" content="#0b1220">
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <div class="wrap">
-    <h1>سائق</h1>
-    <p class="sub">اختيار المحافظة/المركز</p>
-
-    <div class="screen">
-      <input id="gov" placeholder="المحافظة" />
-      <input id="center" placeholder="المركز/المدينة" />
-      <button class="action" id="save">حفظ</button>
-      <div id="saved" style="margin-top:10px;color:#86efac"></div>
+    <div class="topbar">
+      <button class="chip" onclick="location.href='/'">← رجوع</button>
+      <div class="topbar-title">السائق</div>
+      <button class="chip" id="logout">خروج</button>
     </div>
 
-    <button class="action" style="background:#334155;margin-top:12px" onclick="location.href='index.html'">
-      رجوع
-    </button>
+    <div class="panel">
+      <h3 class="h3">بيانات السائق</h3>
+      <input id="gov" placeholder="المحافظة" />
+      <input id="center" placeholder="المركز/المدينة" style="margin-top:10px;" />
+      <button class="action" id="save">حفظ</button>
+      <div class="hint" id="saved">—</div>
+    </div>
+
+    <div class="panel" style="margin-top:12px;">
+      <h3 class="h3">الخريطة</h3>
+      <button class="action ghost" id="openRiderMap">افتح خريطة على موقع الراكب (لو موجود)</button>
+      <button class="action ghost" id="openMyMap" style="margin-top:10px;">افتح خريطة على موقعي الحالي</button>
+      <div class="hint" id="mapHint">—</div>
+    </div>
   </div>
 
+  <script src="/app.js"></script>
   <script>
+    ensureAuth("driver");
+
+    document.getElementById("logout").onclick = logout;
+
+    // تحميل المحفوظ
+    document.getElementById("gov").value = localStorage.getItem("driver_gov") || "";
+    document.getElementById("center").value = localStorage.getItem("driver_center") || "";
+
     document.getElementById("save").onclick = ()=>{
       const gov = document.getElementById("gov").value.trim();
       const center = document.getElementById("center").value.trim();
+      localStorage.setItem("driver_gov", gov);
+      localStorage.setItem("driver_center", center);
       document.getElementById("saved").textContent = `تم الحفظ: ${gov || "-"} / ${center || "-"}`;
+    };
+
+    const mapHint = document.getElementById("mapHint");
+
+    function openMap(lat,lng,zoom=16){
+      const url = `https://www.google.com/maps?q=${lat},${lng}&z=${zoom}`;
+      window.open(url, "_blank");
+    }
+
+    document.getElementById("openRiderMap").onclick = ()=>{
+      const lat = localStorage.getItem("rider_lat");
+      const lng = localStorage.getItem("rider_lng");
+      if(!lat || !lng){
+        mapHint.textContent = "مفيش موقع راكب محفوظ لسه. اطلب من الراكب يحدد موقعه الأول.";
+        return;
+      }
+      mapHint.textContent = "فتح خريطة على موقع الراكب…";
+      openMap(lat,lng,16);
+    };
+
+    document.getElementById("openMyMap").onclick = ()=>{
+      if(!navigator.geolocation){
+        mapHint.textContent = "المتصفح لا يدعم GPS";
+        return;
+      }
+      mapHint.textContent = "جاري تحديد موقعك…";
+      navigator.geolocation.getCurrentPosition(
+        (pos)=>{
+          const { latitude, longitude } = pos.coords;
+          openMap(latitude, longitude, 16);
+          mapHint.textContent = "تم فتح الخريطة على موقعك.";
+        },
+        ()=>{ mapHint.textContent = "مقدرتش أجيب موقعك. فعّل GPS واسمح بالموقع."; },
+        { enableHighAccuracy:true, timeout:10000 }
+      );
     };
   </script>
 </body>
