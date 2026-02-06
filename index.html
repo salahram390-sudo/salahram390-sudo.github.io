@@ -4,7 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>مشوارك</title>
+
+  <!-- PWA -->
   <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0C1220">
+
+  <!-- UI -->
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -13,13 +18,13 @@
     <p class="sub">اختار نوع الحساب</p>
 
     <div class="cards">
-      <button id="btnRider" class="card">
+      <button id="btnRider" class="card" type="button">
         <span class="emoji">🧍‍♂️</span>
         <span class="title">راكب</span>
         <span class="desc">اطلب مشوار بسرعة</span>
       </button>
 
-      <button id="btnDriver" class="card">
+      <button id="btnDriver" class="card" type="button">
         <span class="emoji">🚗</span>
         <span class="title">سائق</span>
         <span class="desc">استقبل الطلبات القريبة</span>
@@ -29,6 +34,24 @@
     <div id="screen" class="screen"></div>
   </div>
 
-  <script src="/app.js"></script>
+  <!-- ✅ Logic -->
+  <script>
+    // fallback لو app.js مش موجود أو لسه ما اتظبطش
+    (function () {
+      const rider = document.getElementById("btnRider");
+      const driver = document.getElementById("btnDriver");
+
+      rider.addEventListener("click", () => {
+        location.href = "/login.html?role=passenger";
+      });
+
+      driver.addEventListener("click", () => {
+        location.href = "/login.html?role=driver";
+      });
+    })();
+  </script>
+
+  <!-- اختياري: لو عندك app.js وعايزه يشتغل برضه -->
+  <script src="/app.js" defer></script>
 </body>
 </html>
