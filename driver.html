@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>السائق - مشوارك</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wrap">
+    <h1>سائق</h1>
+    <p class="sub">اختيار المحافظة/المركز</p>
+
+    <div class="screen">
+      <input id="gov" placeholder="المحافظة" />
+      <input id="center" placeholder="المركز/المدينة" />
+      <button class="action" id="save">حفظ</button>
+      <div id="saved" style="margin-top:10px;color:#86efac"></div>
+    </div>
+
+    <button class="action" style="background:#334155;margin-top:12px" onclick="location.href='index.html'">
+      رجوع
+    </button>
+  </div>
+
+  <script>
+    document.getElementById("save").onclick = ()=>{
+      const gov = document.getElementById("gov").value.trim();
+      const center = document.getElementById("center").value.trim();
+      document.getElementById("saved").textContent = `تم الحفظ: ${gov || "-"} / ${center || "-"}`;
+    };
+  </script>
+</body>
+</html>
