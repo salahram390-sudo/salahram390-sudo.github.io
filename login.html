@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تسجيل الدخول - مشوارك</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wrap">
+    <h1>مشوارك</h1>
+    <p class="sub" id="roleTxt">تسجيل الدخول</p>
+
+    <div class="screen">
+      <input id="phone" placeholder="رقم الموبايل (اختياري حالياً)" />
+      <button class="action" id="go">دخول</button>
+      <div id="msg" style="margin-top:10px;color:#93c5fd"></div>
+    </div>
+
+    <button class="action" style="background:#334155;margin-top:12px" onclick="location.href='index.html'">
+      رجوع
+    </button>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const role = params.get("role") || "passenger";
+    const roleTxt = document.getElementById("roleTxt");
+    roleTxt.textContent = role === "driver" ? "تسجيل دخول السائق" : "تسجيل دخول الراكب";
+
+    document.getElementById("go").onclick = () => {
+      // مؤقتاً بدون Firebase: ندخّل المستخدم للصفحة المناسبة
+      if (role === "driver") location.href = "driver.html";
+      else location.href = "rider.html";
+    };
+  </script>
+</body>
+</html>
