@@ -63,31 +63,37 @@
       </div>
 
       <div id="msg" class="hint" style="margin-top:10px"></div>
+      <div id="contactBox" class="hint" style="margin-top:10px"></div>
     </div>
   </div>
 
   <script type="module">
     import { requireAuthAndRole, doLogout, db, getUserDoc } from "./app.js";
     const { user } = await requireAuthAndRole("passenger");
-    document.getElementById("who").textContent = user.email;
 
+    document.getElementById("who").textContent = user.email;
     document.getElementById("logoutBtn").addEventListener("click", doLogout);
 
     import {
       collection, addDoc, serverTimestamp,
-      doc, onSnapshot
+      doc, onSnapshot, updateDoc
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
+    // =========================
+    // Map
+    // =========================
     const map = L.map("map").setView([30.0444, 31.2357], 12);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
+
+    // حل الخريطة البيضاء
     setTimeout(() => map.invalidateSize(), 350);
 
     let from=null, to=null, fromMarker=null, toMarker=null, line=null, myMarker=null;
     const statusPill = document.getElementById("statusPill");
     const ridePill = document.getElementById("ridePill");
     const msg = document.getElementById("msg");
+    const contactBox = document.getElementById("contactBox");
     const createBtn = document.getElementById("createBtn");
-
     const fromText = document.getElementById("fromText");
     const toText = document.getElementById("toText");
 
@@ -119,6 +125,7 @@
       map.setView([lat,lng], 14);
       drawLine(); updateUI();
     }
+
     function setTo(lat,lng){
       to={lat,lng};
       if(toMarker) map.removeLayer(toMarker);
@@ -138,6 +145,7 @@
 
     async function search(type){
       msg.textContent = "";
+      contactBox.textContent = "";
       const text = (type==="from"?fromText.value:toText.value).trim();
       if(!text) return msg.textContent="اكتب اسم المكان ثم اضغط بحث.";
       try{
@@ -153,18 +161,31 @@
     document.getElementById("fromSearchBtn").addEventListener("click",()=>search("from"));
     document.getElementById("toSearchBtn").addEventListener("click",()=>search("to"));
 
-    document.getElementById("myLocBtn").addEventListener("click", ()=>{
+    function showMyLocation(opts={ saveAsFromIfEmpty:true }){
       msg.textContent = "";
       if(!navigator.geolocation) return msg.textContent="جهازك لا يدعم تحديد الموقع.";
-      navigator.geolocation.getCurrentPosition((pos)=>{
+
+      navigator.geolocation.getCurrentPosition(async (pos)=>{
         const lat=pos.coords.latitude, lng=pos.coords.longitude;
+
         if(myMarker) map.removeLayer(myMarker);
         myMarker = L.marker([lat,lng]).addTo(map).bindPopup("📍 موقعك").openPopup();
         map.setView([lat,lng], 16);
+
+        // ✅ لو لسه مكان القيام مش متحدد: نخليه هو موقعه الحالي
+        if(opts.saveAsFromIfEmpty && !from){
+          setFrom(lat,lng);
+          fromText.value = "موقعي الحالي";
+        }
       }, ()=>{
         msg.textContent="لم يتم السماح بالموقع. فعّل الإذن.";
       }, {enableHighAccuracy:true, timeout:10000});
-    });
+    }
+
+    // ✅ افتح على موقعه تلقائيًا
+    showMyLocation({ saveAsFromIfEmpty:true });
+
+    document.getElementById("myLocBtn").addEventListener("click", ()=>showMyLocation({ saveAsFromIfEmpty:false }));
 
     document.getElementById("resetBtn").addEventListener("click", ()=>{
       from=null;to=null;
@@ -172,24 +193,58 @@
       [fromMarker,toMarker,line,myMarker].forEach(x=>{ if(x) map.removeLayer(x); });
       fromMarker=toMarker=line=myMarker=null;
       msg.textContent="";
+      contactBox.textContent="";
       updateUI();
     });
 
-    // 🔥 إنشاء الطلب + متابعة حالة القبول
+    // =========================
+    // Ride: create + watch
+    // =========================
     let unsubRide = null;
 
     function watchRide(rideId){
       if(unsubRide) unsubRide();
+      contactBox.textContent = "";
       const ref = doc(db, "rides", rideId);
+
       unsubRide = onSnapshot(ref, async (snap)=>{
         if(!snap.exists()) return;
+
         const r = snap.data();
+
         if(r.status === "open"){
           ridePill.textContent = "طلبك جارٍ البحث عن سائق…";
-        }else if(r.status === "accepted"){
+          ridePill.className = "pill";
+          contactBox.textContent = "";
+          return;
+        }
+
+        if(r.status === "accepted"){
+          ridePill.textContent = "✅ تم قبول الطلب";
+          ridePill.className = "pill ok";
+
           const name = r.driverName || "سائق";
           const phone = r.driverPhone || "";
-          ridePill.textContent = `✅ السائق وافق: ${name} ${phone ? "— " + phone : ""}`;
+          const driverLat = r.driverLocation?.lat ?? null;
+          const driverLng = r.driverLocation?.lng ?? null;
+
+          let html = `✅ السائق وافق: <b>${name}</b>`;
+          if(phone) html += ` — <a href="tel:${phone}">${phone}</a>`;
+
+          if(driverLat && driverLng){
+            html += `<br><a id="goDriver" href="#">📍 افتح موقع السائق على الخريطة</a>`;
+          }
+
+          contactBox.innerHTML = html;
+
+          const go = document.getElementById("goDriver");
+          if(go && driverLat && driverLng){
+            go.addEventListener("click", (e)=>{
+              e.preventDefault();
+              map.setView([driverLat, driverLng], 16);
+              L.popup().setLatLng([driverLat, driverLng]).setContent("📍 موقع السائق").openOn(map);
+            });
+          }
         }
       });
     }
@@ -199,23 +254,40 @@
 
     createBtn.addEventListener("click", async ()=>{
       try{
+        msg.textContent="";
+        contactBox.textContent="";
+
+        if(!from || !to){
+          msg.textContent = "❌ لازم تحدد مكان القيام والوصول الأول.";
+          updateUI();
+          return;
+        }
+
         createBtn.disabled = true;
         msg.textContent="جارٍ إنشاء الطلب…";
 
-        const u = await getUserDoc(user.uid); // لو عندك اسم/هاتف في account.html
+        const u = await getUserDoc(user.uid);
         const passengerName = u?.name || null;
         const passengerPhone = u?.phone || null;
 
         const docRef = await addDoc(collection(db, "rides"), {
           status: "open",
           createdAt: serverTimestamp(),
+
           from, to,
           fromText: fromText.value.trim() || null,
           toText: toText.value.trim() || null,
+
           passengerUid: user.uid,
           passengerEmail: user.email,
           passengerName,
-          passengerPhone
+          passengerPhone,
+
+          // هنضيفهم لاحقًا عند قبول السائق:
+          driverUid: null,
+          driverName: null,
+          driverPhone: null,
+          driverLocation: null
         });
 
         localStorage.setItem("lastRideId", docRef.id);
