@@ -4,12 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>مشوارك</title>
-
-  <!-- PWA -->
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#0C1220">
-
-  <!-- UI -->
+  <meta name="theme-color" content="#0b1220">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -18,40 +14,31 @@
     <p class="sub">اختار نوع الحساب</p>
 
     <div class="cards">
-      <button id="btnRider" class="card" type="button">
+      <button class="card" data-type="rider">
         <span class="emoji">🧍‍♂️</span>
         <span class="title">راكب</span>
         <span class="desc">اطلب مشوار بسرعة</span>
       </button>
 
-      <button id="btnDriver" class="card" type="button">
+      <button class="card" data-type="driver">
         <span class="emoji">🚗</span>
         <span class="title">سائق</span>
         <span class="desc">استقبل الطلبات القريبة</span>
       </button>
     </div>
 
-    <div id="screen" class="screen"></div>
+    <div class="footer-note">نسخة تجريبية PWA</div>
   </div>
 
-  <!-- ✅ Logic -->
   <script>
-    // fallback لو app.js مش موجود أو لسه ما اتظبطش
-    (function () {
-      const rider = document.getElementById("btnRider");
-      const driver = document.getElementById("btnDriver");
-
-      rider.addEventListener("click", () => {
-        location.href = "/login.html?role=passenger";
+    document.querySelectorAll(".card").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const type = btn.getAttribute("data-type"); // rider | driver
+        localStorage.setItem("account_type", type);
+        location.href = "/login.html";
       });
-
-      driver.addEventListener("click", () => {
-        location.href = "/login.html?role=driver";
-      });
-    })();
+    });
   </script>
-
-  <!-- اختياري: لو عندك app.js وعايزه يشتغل برضه -->
-  <script src="/app.js" defer></script>
+  <script src="/app.js"></script>
 </body>
 </html>
