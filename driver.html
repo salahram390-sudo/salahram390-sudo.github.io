@@ -25,10 +25,11 @@
 
   <div class="container" style="padding-top:18px">
     <div class="card">
-      <div class="hint">الطلبات المفتوحة تظهر هنا. اضغط “قبول” علشان الراكب يشوف إنك وافقت.</div>
+      <div class="hint">الطلبات المفتوحة تظهر هنا. اضغط “قبول” علشان الراكب يشوف إنك وافقت + يتسجل موقعك الحالي.</div>
       <div class="actions" style="margin-top:10px">
         <button class="btn" id="refreshBtn">تحديث</button>
       </div>
+      <div id="locHint" class="hint" style="margin-top:10px"></div>
     </div>
 
     <div id="list" class="list" style="margin-top:12px"></div>
@@ -42,17 +43,50 @@
 
     import {
       collection, query, where, orderBy, limit, getDocs,
-      doc, updateDoc, serverTimestamp
+      doc, getDoc, updateDoc, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const listEl = document.getElementById("list");
     const refreshBtn = document.getElementById("refreshBtn");
+    const locHint = document.getElementById("locHint");
 
     function safeNum(x){
       const n = Number(x);
       return Number.isFinite(n) ? n : null;
     }
 
+    // =========================
+    // Get driver current location once (best effort)
+    // =========================
+    let driverLoc = null;
+
+    function getDriverLocation(){
+      return new Promise((resolve)=>{
+        if(!navigator.geolocation){
+          locHint.textContent = "⚠️ جهازك لا يدعم تحديد الموقع.";
+          return resolve(null);
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos)=>{
+            driverLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            locHint.textContent = `✅ تم التقاط موقعك: ${driverLoc.lat.toFixed(5)}, ${driverLoc.lng.toFixed(5)}`;
+            resolve(driverLoc);
+          },
+          ()=>{
+            locHint.textContent = "⚠️ لم يتم السماح بالموقع. (مش هيظهر موقعك للراكب) — فعّل الإذن من إعدادات المتصفح.";
+            resolve(null);
+          },
+          { enableHighAccuracy:true, timeout:10000 }
+        );
+      });
+    }
+
+    // حاول تلقائيًا
+    await getDriverLocation();
+
+    // =========================
+    // Load open rides
+    // =========================
     async function load(){
       listEl.innerHTML = `<div class="card">جارٍ تحميل الطلبات…</div>`;
 
@@ -81,37 +115,63 @@
 
         const el = document.createElement("div");
         el.className = "card ride";
+
         el.innerHTML = `
           <div class="kv">
             <b>طلب: ${r.id}</b>
-            <span>من: ${r.fromText || (fromLat&&fromLng? `${fromLat.toFixed(5)}, ${fromLng.toFixed(5)}`:"-")}</span>
-            <span>إلى: ${r.toText || (toLat&&toLng? `${toLat.toFixed(5)}, ${toLng.toFixed(5)}`:"-")}</span>
+            <span>من: ${r.fromText || (fromLat!==null && fromLng!==null ? `${fromLat.toFixed(5)}, ${fromLng.toFixed(5)}`:"-")}</span>
+            <span>إلى: ${r.toText || (toLat!==null && toLng!==null ? `${toLat.toFixed(5)}, ${toLng.toFixed(5)}`:"-")}</span>
           </div>
-          <div class="row">
+
+          <div class="row" style="margin-top:10px">
             <button class="btn success" data-id="${r.id}">قبول</button>
-            ${fromLat && fromLng ? `
+
+            ${(fromLat!==null && fromLng!==null) ? `
               <a class="btn" target="_blank"
                  href="https://www.openstreetmap.org/?mlat=${fromLat}&mlon=${fromLng}#map=16/${fromLat}/${fromLng}">
                 فتح الانطلاق
               </a>` : ``}
           </div>
+
+          <div class="hint" style="margin-top:8px">
+            ${r.passengerName ? `الراكب: <b>${r.passengerName}</b>` : `الراكب: ${r.passengerEmail || "-"}`}
+            ${r.passengerPhone ? ` — <a href="tel:${r.passengerPhone}">${r.passengerPhone}</a>` : ``}
+          </div>
         `;
 
         el.querySelector("button").addEventListener("click", async ()=>{
           try{
+            // تأكد أحدث نسخة (عشان لو اتقبلت من سائق تاني)
+            const liveSnap = await getDoc(doc(db, "rides", r.id));
+            if(!liveSnap.exists()) return alert("الطلب غير موجود.");
+            const live = liveSnap.data();
+            if(live.status !== "open"){
+              alert("الطلب اتقبل بالفعل من سائق آخر.");
+              await load();
+              return;
+            }
+
+            // بيانات السائق من account (لو موجودة)
             const me = await getUserDoc(user.uid);
             const driverName = me?.name || "سائق";
             const driverPhone = me?.phone || null;
 
+            // لو مفيش موقع متاخد، حاول مرة تانية قبل القبول
+            if(!driverLoc) await getDriverLocation();
+
             await updateDoc(doc(db, "rides", r.id), {
               status: "accepted",
               acceptedAt: serverTimestamp(),
+
               driverUid: user.uid,
               driverEmail: user.email,
               driverName,
-              driverPhone
+              driverPhone,
+
+              driverLocation: driverLoc ? driverLoc : null
             });
 
+            alert("✅ تم قبول الطلب.");
             await load();
           }catch(e){
             console.error(e);
@@ -123,7 +183,12 @@
       });
     }
 
-    refreshBtn.addEventListener("click", load);
+    refreshBtn.addEventListener("click", async ()=>{
+      // تحديث الموقع (اختياري) + تحديث القائمة
+      await getDriverLocation();
+      await load();
+    });
+
     load();
   </script>
 </body>
