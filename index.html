@@ -1,10 +1,23 @@
 <!DOCTYPE html>
-<html>
+<html lang="ar">
 <head>
-<meta charset="UTF-8">
-<title>GitHub Pages Live</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>مشوارك</title>
+
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#101825">
 </head>
+
 <body>
-<p>GitHub Pages is active</p>
+  <h2>مشوارك</h2>
+  <p>GitHub Pages is active ✅</p>
+
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js");
+    }
+  </script>
 </body>
 </html>
