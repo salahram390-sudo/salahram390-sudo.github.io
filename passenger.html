@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>مشوارك - راكب</title>
+
+  <link rel="stylesheet" href="./style.css">
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-inner container">
+      <div class="brand">
+        <div class="logo">م</div>
+        <div>
+          <h1>راكب</h1>
+          <p id="who">جارٍ التحميل…</p>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <a class="btn" href="./account.html">حسابي</a>
+        <button class="btn danger" id="logoutBtn">خروج</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="map-wrap">
+    <div id="map"></div>
+
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+
+      <div class="grid2">
+        <div class="field" style="margin-top:0">
+          <label>مكان القيام</label>
+          <div class="grid3">
+            <input id="fromText" placeholder="مثال: مدينة نصر، القاهرة" />
+            <button class="btn" id="fromSearchBtn">بحث</button>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:0">
+          <label>مكان الوصول</label>
+          <div class="grid3">
+            <input id="toText" placeholder="مثال: الهرم، الجيزة" />
+            <button class="btn" id="toSearchBtn">بحث</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="pills">
+        <span class="pill" id="statusPill">اختر مكان القيام…</span>
+        <span class="pill" id="ridePill">لا يوجد طلب</span>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" id="createBtn" disabled>اطلب مشوار</button>
+        <button class="btn" id="myLocBtn">📍 موقعي</button>
+        <button class="btn" id="resetBtn">إعادة</button>
+      </div>
+
+      <div id="msg" class="hint" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { requireAuthAndRole, doLogout, db, getUserDoc } from "./app.js";
+    const { user } = await requireAuthAndRole("passenger");
+    document.getElementById("who").textContent = user.email;
+
+    document.getElementById("logoutBtn").addEventListener("click", doLogout);
+
+    import {
+      collection, addDoc, serverTimestamp,
+      doc, onSnapshot
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    const map = L.map("map").setView([30.0444, 31.2357], 12);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
+    setTimeout(() => map.invalidateSize(), 350);
+
+    let from=null, to=null, fromMarker=null, toMarker=null, line=null, myMarker=null;
+    const statusPill = document.getElementById("statusPill");
+    const ridePill = document.getElementById("ridePill");
+    const msg = document.getElementById("msg");
+    const createBtn = document.getElementById("createBtn");
+
+    const fromText = document.getElementById("fromText");
+    const toText = document.getElementById("toText");
+
+    function updateUI(){
+      if(!from){
+        statusPill.textContent = "اختر مكان القيام…";
+        createBtn.disabled = true;
+      }else if(from && !to){
+        statusPill.textContent = "تم تحديد القيام ✅ اختر الوصول…";
+        createBtn.disabled = true;
+      }else{
+        statusPill.textContent = "جاهز ✅";
+        createBtn.disabled = false;
+      }
+    }
+
+    function drawLine(){
+      if(from && to){
+        if(line) map.removeLayer(line);
+        line = L.polyline([[from.lat, from.lng],[to.lat,to.lng]]).addTo(map);
+        map.fitBounds(line.getBounds(), {padding:[30,30]});
+      }
+    }
+
+    function setFrom(lat,lng){
+      from={lat,lng};
+      if(fromMarker) map.removeLayer(fromMarker);
+      fromMarker = L.marker([lat,lng]).addTo(map).bindPopup("🚩 القيام").openPopup();
+      map.setView([lat,lng], 14);
+      drawLine(); updateUI();
+    }
+    function setTo(lat,lng){
+      to={lat,lng};
+      if(toMarker) map.removeLayer(toMarker);
+      toMarker = L.marker([lat,lng]).addTo(map).bindPopup("🏁 الوصول").openPopup();
+      map.setView([lat,lng], 14);
+      drawLine(); updateUI();
+    }
+
+    async function geocode(q){
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
+      const res = await fetch(url, { headers: { "Accept":"application/json" } });
+      if(!res.ok) throw new Error("geocode failed");
+      const data = await res.json();
+      if(!data?.length) return null;
+      return { lat:Number(data[0].lat), lng:Number(data[0].lon) };
+    }
+
+    async function search(type){
+      msg.textContent = "";
+      const text = (type==="from"?fromText.value:toText.value).trim();
+      if(!text) return msg.textContent="اكتب اسم المكان ثم اضغط بحث.";
+      try{
+        const r = await geocode(text);
+        if(!r) return msg.textContent="لم يتم العثور على المكان.";
+        if(type==="from") setFrom(r.lat,r.lng); else setTo(r.lat,r.lng);
+      }catch(e){
+        console.error(e);
+        msg.textContent="حصل خطأ في البحث. جرّب تاني.";
+      }
+    }
+
+    document.getElementById("fromSearchBtn").addEventListener("click",()=>search("from"));
+    document.getElementById("toSearchBtn").addEventListener("click",()=>search("to"));
+
+    document.getElementById("myLocBtn").addEventListener("click", ()=>{
+      msg.textContent = "";
+      if(!navigator.geolocation) return msg.textContent="جهازك لا يدعم تحديد الموقع.";
+      navigator.geolocation.getCurrentPosition((pos)=>{
+        const lat=pos.coords.latitude, lng=pos.coords.longitude;
+        if(myMarker) map.removeLayer(myMarker);
+        myMarker = L.marker([lat,lng]).addTo(map).bindPopup("📍 موقعك").openPopup();
+        map.setView([lat,lng], 16);
+      }, ()=>{
+        msg.textContent="لم يتم السماح بالموقع. فعّل الإذن.";
+      }, {enableHighAccuracy:true, timeout:10000});
+    });
+
+    document.getElementById("resetBtn").addEventListener("click", ()=>{
+      from=null;to=null;
+      fromText.value="";toText.value="";
+      [fromMarker,toMarker,line,myMarker].forEach(x=>{ if(x) map.removeLayer(x); });
+      fromMarker=toMarker=line=myMarker=null;
+      msg.textContent="";
+      updateUI();
+    });
+
+    // 🔥 إنشاء الطلب + متابعة حالة القبول
+    let unsubRide = null;
+
+    function watchRide(rideId){
+      if(unsubRide) unsubRide();
+      const ref = doc(db, "rides", rideId);
+      unsubRide = onSnapshot(ref, async (snap)=>{
+        if(!snap.exists()) return;
+        const r = snap.data();
+        if(r.status === "open"){
+          ridePill.textContent = "طلبك جارٍ البحث عن سائق…";
+        }else if(r.status === "accepted"){
+          const name = r.driverName || "سائق";
+          const phone = r.driverPhone || "";
+          ridePill.textContent = `✅ السائق وافق: ${name} ${phone ? "— " + phone : ""}`;
+        }
+      });
+    }
+
+    const lastRideId = localStorage.getItem("lastRideId");
+    if(lastRideId) watchRide(lastRideId);
+
+    createBtn.addEventListener("click", async ()=>{
+      try{
+        createBtn.disabled = true;
+        msg.textContent="جارٍ إنشاء الطلب…";
+
+        const u = await getUserDoc(user.uid); // لو عندك اسم/هاتف في account.html
+        const passengerName = u?.name || null;
+        const passengerPhone = u?.phone || null;
+
+        const docRef = await addDoc(collection(db, "rides"), {
+          status: "open",
+          createdAt: serverTimestamp(),
+          from, to,
+          fromText: fromText.value.trim() || null,
+          toText: toText.value.trim() || null,
+          passengerUid: user.uid,
+          passengerEmail: user.email,
+          passengerName,
+          passengerPhone
+        });
+
+        localStorage.setItem("lastRideId", docRef.id);
+        watchRide(docRef.id);
+
+        msg.textContent = `✅ تم إنشاء الطلب! رقم: ${docRef.id}`;
+      }catch(e){
+        console.error(e);
+        msg.textContent="❌ حصل خطأ. راجع Firestore Rules.";
+      }finally{
+        updateUI();
+      }
+    });
+
+    updateUI();
+  </script>
+</body>
+</html>
