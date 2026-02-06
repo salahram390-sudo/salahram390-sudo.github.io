@@ -1,44 +1,53 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>مشوارك</title>
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#0b1220">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#0B0F14">
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <div class="wrap">
-    <h1>مشوارك</h1>
-    <p class="sub">اختار نوع الحساب</p>
+  <div class="topbar">
+    <div class="topbar-inner container">
+      <div class="brand">
+        <div class="logo">م</div>
+        <div>
+          <h1>مشوارك</h1>
+          <p>اختر نوع الحساب</p>
+        </div>
+      </div>
+      <a class="btn" href="./login.html">تسجيل الدخول</a>
+    </div>
+  </div>
 
-    <div class="cards">
-      <button class="card" data-type="rider">
-        <span class="emoji">🧍‍♂️</span>
-        <span class="title">راكب</span>
-        <span class="desc">اطلب مشوار بسرعة</span>
-      </button>
+  <div class="container" style="padding-top:18px">
+    <div class="grid2">
+      <a class="card" href="./login.html?role=passenger">
+        <div class="kv">
+          <b>🚕 راكب</b>
+          <span>اطلب مشوار بسرعة</span>
+        </div>
+      </a>
 
-      <button class="card" data-type="driver">
-        <span class="emoji">🚗</span>
-        <span class="title">سائق</span>
-        <span class="desc">استقبل الطلبات القريبة</span>
-      </button>
+      <a class="card" href="./login.html?role=driver">
+        <div class="kv">
+          <b>🧑‍✈️ سائق</b>
+          <span>استقبل الطلبات القريبة</span>
+        </div>
+      </a>
     </div>
 
-    <div class="footer-note">نسخة تجريبية PWA</div>
+    <div class="card" style="margin-top:12px">
+      <div class="hint">
+        لو مثبت التطبيق (PWA/TWA) هيشتغل كشاشة كاملة بدون شريط متصفح حسب إعدادات الـ TWA.
+      </div>
+    </div>
   </div>
 
   <script>
-    document.querySelectorAll(".card").forEach(btn=>{
-      btn.addEventListener("click", ()=>{
-        const type = btn.getAttribute("data-type"); // rider | driver
-        localStorage.setItem("account_type", type);
-        location.href = "/login.html";
-      });
-    });
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");
   </script>
-  <script src="/app.js"></script>
 </body>
 </html>
