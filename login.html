@@ -1,39 +1,154 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>تسجيل الدخول - مشوارك</title>
-  <meta name="theme-color" content="#0b1220">
-  <link rel="stylesheet" href="/style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>مشوارك - تسجيل الدخول</title>
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <div class="wrap center">
-    <h1>مشوارك</h1>
-    <p class="sub" id="subtitle">تسجيل الدخول</p>
-
-    <div class="panel">
-      <input id="phone" type="tel" inputmode="tel" placeholder="رقم الموبايل (اختياري حالياً)" />
-      <button class="action" id="loginBtn">دخول</button>
+  <div class="topbar">
+    <div class="topbar-inner container">
+      <div class="brand">
+        <div class="logo">م</div>
+        <div>
+          <h1>تسجيل الدخول</h1>
+          <p>إيميل Gmail + باسورد</p>
+        </div>
+      </div>
+      <a class="btn" href="./index.html">رجوع</a>
     </div>
-
-    <button class="action ghost" id="backBtn">رجوع</button>
-    <div class="hint" id="hint"></div>
   </div>
 
-  <script>
-    const type = localStorage.getItem("account_type") || "rider";
-    document.getElementById("subtitle").textContent =
-      (type === "driver") ? "تسجيل دخول السائق" : "تسجيل دخول الراكب";
+  <div class="container" style="padding-top:18px">
+    <div class="card">
+      <div class="hint">اختر الدور (راكب/سائق) ثم سجّل دخول أو أنشئ حساب.</div>
 
-    document.getElementById("backBtn").onclick = () => location.href = "/";
+      <div class="pills">
+        <button class="btn" id="rolePassenger">🚕 راكب</button>
+        <button class="btn" id="roleDriver">🧑‍✈️ سائق</button>
+      </div>
 
-    document.getElementById("loginBtn").onclick = () => {
-      localStorage.setItem("logged_in", "1");
-      localStorage.setItem("phone", (document.getElementById("phone").value || "").trim());
-      location.href = (type === "driver") ? "/driver.html" : "/rider.html";
-    };
+      <div class="field">
+        <label>الإيميل (لازم ينتهي بـ @gmail.com)</label>
+        <input id="email" placeholder="example@gmail.com" autocomplete="email" />
+      </div>
+
+      <div class="field">
+        <label>كلمة المرور (6+)</label>
+        <input id="pass" type="password" placeholder="******" autocomplete="current-password" />
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" id="signupBtn">إنشاء حساب</button>
+        <button class="btn" id="loginBtn">تسجيل دخول</button>
+      </div>
+
+      <div class="hr"></div>
+      <div id="msg" class="hint"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth, getUserDoc, saveUserRole } from "./app.js";
+    import {
+      createUserWithEmailAndPassword,
+      signInWithEmailAndPassword,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    const msg = document.getElementById("msg");
+    const emailEl = document.getElementById("email");
+    const passEl = document.getElementById("pass");
+
+    const rolePassenger = document.getElementById("rolePassenger");
+    const roleDriver = document.getElementById("roleDriver");
+
+    const signupBtn = document.getElementById("signupBtn");
+    const loginBtn = document.getElementById("loginBtn");
+
+    let selectedRole = null;
+
+    function setRole(role){
+      selectedRole = role;
+      rolePassenger.classList.toggle("primary", role === "passenger");
+      roleDriver.classList.toggle("primary", role === "driver");
+    }
+
+    rolePassenger.addEventListener("click", () => setRole("passenger"));
+    roleDriver.addEventListener("click", () => setRole("driver"));
+
+    // لو جاي من index بدور
+    const roleFromUrl = new URLSearchParams(location.search).get("role");
+    if(roleFromUrl === "passenger" || roleFromUrl === "driver") setRole(roleFromUrl);
+
+    function isGmail(email){ return /@gmail\.com$/i.test((email||"").trim()); }
+
+    // لو بالفعل عامل Login وروحه معروف -> دخله مباشرة
+    onAuthStateChanged(auth, async (user) => {
+      if(!user) return;
+      const data = await getUserDoc(user.uid);
+      if(data?.role === "passenger") location.href = "./passenger.html";
+      if(data?.role === "driver") location.href = "./driver.html";
+    });
+
+    async function handleSignup(){
+      msg.textContent = "";
+      const email = emailEl.value.trim();
+      const pass = passEl.value.trim();
+
+      if(!isGmail(email)) return msg.textContent = "❌ لازم الإيميل ينتهي بـ @gmail.com";
+      if(pass.length < 6) return msg.textContent = "❌ الباسورد لازم 6 أحرف/أرقام أو أكثر";
+      if(!selectedRole) return msg.textContent = "❌ اختار راكب أو سائق";
+
+      signupBtn.disabled = loginBtn.disabled = true;
+      msg.textContent = "جارٍ إنشاء الحساب…";
+
+      try{
+        const res = await createUserWithEmailAndPassword(auth, email, pass);
+        await saveUserRole(res.user.uid, selectedRole);
+        location.href = (selectedRole === "passenger") ? "./passenger.html" : "./driver.html";
+      }catch(e){
+        console.error(e);
+        msg.textContent = "❌ فشل إنشاء الحساب (قد يكون الإيميل مستخدم قبل كده).";
+      }finally{
+        signupBtn.disabled = loginBtn.disabled = false;
+      }
+    }
+
+    async function handleLogin(){
+      msg.textContent = "";
+      const email = emailEl.value.trim();
+      const pass = passEl.value.trim();
+
+      if(!isGmail(email)) return msg.textContent = "❌ لازم الإيميل ينتهي بـ @gmail.com";
+      if(pass.length < 6) return msg.textContent = "❌ الباسورد لازم 6 أحرف/أرقام أو أكثر";
+
+      signupBtn.disabled = loginBtn.disabled = true;
+      msg.textContent = "جارٍ تسجيل الدخول…";
+
+      try{
+        const res = await signInWithEmailAndPassword(auth, email, pass);
+        const data = await getUserDoc(res.user.uid);
+
+        let role = data?.role || null;
+        if(!role){
+          if(!selectedRole) return msg.textContent = "❌ اختار راكب أو سائق (مرة واحدة فقط)";
+          await saveUserRole(res.user.uid, selectedRole);
+          role = selectedRole;
+        }
+
+        location.href = (role === "passenger") ? "./passenger.html" : "./driver.html";
+      }catch(e){
+        console.error(e);
+        msg.textContent = "❌ الإيميل أو الباسورد غلط.";
+      }finally{
+        signupBtn.disabled = loginBtn.disabled = false;
+      }
+    }
+
+    signupBtn.addEventListener("click", handleSignup);
+    loginBtn.addEventListener("click", handleLogin);
   </script>
-  <script src="/app.js"></script>
 </body>
 </html>
