@@ -4,10 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>مشوارك</title>
+
   <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#0B0F14">
   <link rel="stylesheet" href="./style.css">
 </head>
+
 <body>
   <div class="topbar">
     <div class="topbar-inner container">
@@ -47,7 +49,31 @@
   </div>
 
   <script>
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js");
+    }
+  </script>
+
+  <!-- ✅ Redirect تلقائي لو المستخدم عامل Login -->
+  <script type="module">
+    import { auth, getUserDoc } from "./app.js";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) return;
+
+      try {
+        const data = await getUserDoc(user.uid);
+
+        if (data?.role === "passenger") {
+          location.href = "./passenger.html";
+        } else if (data?.role === "driver") {
+          location.href = "./driver.html";
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    });
   </script>
 </body>
 </html>
