@@ -1,23 +1,34 @@
-<!DOCTYPE html>
-<html lang="ar">
+<!doctype html>
+<html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>مشوارك</title>
-
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#101825">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/style.css">
 </head>
-
 <body>
-  <h2>مشوارك</h2>
-  <p>GitHub Pages is active ✅</p>
+  <div class="wrap">
+    <h1>مشوارك</h1>
+    <p class="sub">اختار نوع الحساب</p>
 
-  <script>
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("sw.js");
-    }
-  </script>
+    <div class="cards">
+      <button id="btnRider" class="card">
+        <span class="emoji">🧍‍♂️</span>
+        <span class="title">راكب</span>
+        <span class="desc">اطلب مشوار بسرعة</span>
+      </button>
+
+      <button id="btnDriver" class="card">
+        <span class="emoji">🚗</span>
+        <span class="title">سائق</span>
+        <span class="desc">استقبل الطلبات القريبة</span>
+      </button>
+    </div>
+
+    <div id="screen" class="screen"></div>
+  </div>
+
+  <script src="/app.js"></script>
 </body>
 </html>
