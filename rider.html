@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>الراكب - مشوارك</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wrap">
+    <h1>راكب</h1>
+    <p class="sub">هنا هنبدأ: مكان القيام + الوجهة</p>
+
+    <div class="screen">
+      <button class="action" id="locBtn">التقاط موقعي الحالي</button>
+      <div id="loc" style="margin-top:10px;color:#93c5fd"></div>
+    </div>
+
+    <button class="action" style="background:#334155;margin-top:12px" onclick="location.href='index.html'">
+      رجوع
+    </button>
+  </div>
+
+  <script>
+    document.getElementById("locBtn").onclick = () => {
+      const out = document.getElementById("loc");
+      if(!navigator.geolocation){
+        out.textContent = "المتصفح لا يدعم GPS";
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos)=>{
+          const {latitude, longitude} = pos.coords;
+          out.textContent = `موقعي: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        },
+        ()=>{ out.textContent = "مقدرتش أجيب الموقع. فعّل GPS واسمح بالموقع."; },
+        {enableHighAccuracy:true, timeout:10000}
+      );
+    };
+  </script>
+</body>
+</html>
