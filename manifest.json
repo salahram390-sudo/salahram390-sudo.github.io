@@ -1,14 +1,13 @@
 {
   "name": "مشوارك",
   "short_name": "مشوارك",
-  "id": "/",
-  "start_url": "/?source=pwa",
+  "start_url": "/index.html",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "background_color": "#0b0f14",
-  "theme_color": "#101825",
-  "orientation": "portrait",
+  "theme_color": "#0b0f14",
+
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
