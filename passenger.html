@@ -7,6 +7,9 @@
 
   <link rel="stylesheet" href="./style.css">
 
+  <!-- ✅ مهم للـ Location داخل بعض الـ WebViews -->
+  <meta http-equiv="Permissions-Policy" content="geolocation=(self)">
+
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
@@ -21,7 +24,7 @@
         </div>
       </div>
       <div style="display:flex;gap:8px">
-        <a class="btn" href="./account.html">حسابي</a>
+        <a class="btn" href="./index.html">الرئيسية</a>
         <button class="btn danger" id="logoutBtn">خروج</button>
       </div>
     </div>
@@ -54,6 +57,7 @@
       <div class="pills">
         <span class="pill" id="statusPill">اختر مكان القيام…</span>
         <span class="pill" id="ridePill">لا يوجد طلب</span>
+        <span class="pill" id="permPill">الموقع: غير معروف</span>
       </div>
 
       <!-- ✅ صندوق تواصل يظهر عند قبول السائق -->
@@ -73,7 +77,6 @@
     import { requireAuthAndRole, doLogout, db, getUserDoc } from "./app.js";
     const { user } = await requireAuthAndRole("passenger");
     document.getElementById("who").textContent = user.email;
-
     document.getElementById("logoutBtn").addEventListener("click", doLogout);
 
     import {
@@ -81,9 +84,16 @@
       doc, onSnapshot
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
+    // ✅ Fix: Leaflet marker icons (بتختفي في GitHub Pages / WebView)
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+      iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+      shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+    });
+
     const map = L.map("map").setView([30.0444, 31.2357], 12);
 
-    // ✅ FIX: بدل سيرفر OSM اللي بيعمل Block بسيرفر CARTO
+    // ✅ Tiles stable
     L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap &copy; CARTO'
@@ -92,14 +102,43 @@
     setTimeout(() => map.invalidateSize(), 350);
 
     let from=null, to=null, fromMarker=null, toMarker=null, line=null, myMarker=null;
+
     const statusPill = document.getElementById("statusPill");
     const ridePill = document.getElementById("ridePill");
+    const permPill = document.getElementById("permPill");
     const msg = document.getElementById("msg");
     const createBtn = document.getElementById("createBtn");
 
     const fromText = document.getElementById("fromText");
     const toText = document.getElementById("toText");
     const contactBox = document.getElementById("contactBox");
+
+    function setPermPill(state){
+      if(state === "granted"){
+        permPill.textContent = "الموقع: مسموح ✅";
+        permPill.classList.remove("bad");
+        permPill.classList.add("ok");
+      }else if(state === "denied"){
+        permPill.textContent = "الموقع: مرفوض ❌";
+        permPill.classList.remove("ok");
+        permPill.classList.add("bad");
+      }else{
+        permPill.textContent = "الموقع: غير معروف";
+        permPill.classList.remove("ok","bad");
+      }
+    }
+
+    async function refreshPermissionState(){
+      try{
+        if(!navigator.permissions?.query) return setPermPill("unknown");
+        const p = await navigator.permissions.query({ name: "geolocation" });
+        setPermPill(p.state);
+        p.onchange = () => setPermPill(p.state);
+      }catch(_){
+        setPermPill("unknown");
+      }
+    }
+    refreshPermissionState();
 
     function updateUI(){
       if(!from){
@@ -163,17 +202,31 @@
     document.getElementById("fromSearchBtn").addEventListener("click",()=>search("from"));
     document.getElementById("toSearchBtn").addEventListener("click",()=>search("to"));
 
-    document.getElementById("myLocBtn").addEventListener("click", ()=>{
+    function explainLocationDenied(){
+      msg.innerHTML =
+        "❌ لم يتم السماح بالموقع.<br>" +
+        "لو أنت على APK من WebIntoApp/PWABuilder: افتح إعدادات الموبايل → التطبيقات → (اسم التطبيق) → الأذونات → فعّل <b>الموقع</b>.";
+    }
+
+    document.getElementById("myLocBtn").addEventListener("click", async ()=>{
       msg.textContent = "";
       if(!navigator.geolocation) return msg.textContent="جهازك لا يدعم تحديد الموقع.";
+
       navigator.geolocation.getCurrentPosition((pos)=>{
+        setPermPill("granted");
         const lat=pos.coords.latitude, lng=pos.coords.longitude;
         if(myMarker) map.removeLayer(myMarker);
         myMarker = L.marker([lat,lng]).addTo(map).bindPopup("📍 موقعك").openPopup();
         map.setView([lat,lng], 16);
-      }, ()=>{
-        msg.textContent="لم يتم السماح بالموقع. فعّل الإذن.";
-      }, {enableHighAccuracy:true, timeout:10000});
+      }, (err)=>{
+        console.error(err);
+        if(err?.code === 1){
+          setPermPill("denied");
+          explainLocationDenied();
+        }else{
+          msg.textContent="تعذر تحديد الموقع الآن. جرّب تاني.";
+        }
+      }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
     });
 
     document.getElementById("resetBtn").addEventListener("click", ()=>{
@@ -189,8 +242,7 @@
 
     function toWhatsappNumber(phone){
       if(!phone) return null;
-      let p = String(phone).trim();
-      p = p.replace(/\s+/g,"").replace(/-/g,"");
+      let p = String(phone).trim().replace(/\s+/g,"").replace(/-/g,"");
       if(p.startsWith("0")) p = "20" + p.slice(1);
       if(p.startsWith("+")) p = p.slice(1);
       p = p.replace(/[^\d]/g,"");
@@ -243,7 +295,7 @@
               ${waNum ? `<a class="btn" target="_blank" href="https://wa.me/${waNum}">واتساب</a>` : ``}
               ${mapLink ? `<a class="btn" target="_blank" href="${mapLink}">فتح الانطلاق</a>` : ``}
             </div>
-            <div class="small" style="margin-top:8px">لو زر واتساب مش ظاهر: لازم رقم السائق يكون محفوظ في "حسابي".</div>
+            <div class="small" style="margin-top:8px">لو زر واتساب مش ظاهر: لازم رقم السائق يكون محفوظ في حساب السائق.</div>
           `;
         }
       });
