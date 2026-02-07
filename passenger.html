@@ -82,7 +82,13 @@
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     const map = L.map("map").setView([30.0444, 31.2357], 12);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
+
+    // ✅ FIX: بدل سيرفر OSM اللي بيعمل Block بسيرفر CARTO
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap &copy; CARTO'
+    }).addTo(map);
+
     setTimeout(() => map.invalidateSize(), 350);
 
     let from=null, to=null, fromMarker=null, toMarker=null, line=null, myMarker=null;
@@ -181,21 +187,16 @@
       updateUI();
     });
 
-    // ✅ مساعد لتجهيز رقم واتساب (يفضل يكون برمز الدولة)
     function toWhatsappNumber(phone){
       if(!phone) return null;
       let p = String(phone).trim();
       p = p.replace(/\s+/g,"").replace(/-/g,"");
-      // 010xxxx -> 2010xxxx
       if(p.startsWith("0")) p = "20" + p.slice(1);
       if(p.startsWith("+")) p = p.slice(1);
-      // لو مكتوب 20... تمام
-      // فلترة أي غير رقم
       p = p.replace(/[^\d]/g,"");
       return p || null;
     }
 
-    // 🔥 إنشاء الطلب + متابعة حالة القبول
     let unsubRide = null;
 
     function watchRide(rideId){
