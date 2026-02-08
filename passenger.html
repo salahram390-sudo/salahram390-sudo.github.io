@@ -1,3 +1,4 @@
+<!-- passenger.html (جاهز للاستبدال بالكامل) -->
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -34,7 +35,7 @@
     <div id="map"></div>
 
     <div class="sheet" id="sheet">
-      <div class="sheet-handle" id="sheetHandle"></div>
+      <div class="sheet-handle" id="sheetHandle" aria-label="سحب"></div>
 
       <div class="sheet-content" id="sheetContent">
         <div class="grid2">
@@ -87,28 +88,39 @@
 
     const msg = document.getElementById("msg");
 
-    const map = L.map("map", { zoomControl:false }).setView([30.0444, 31.2357], 12);
+    // ========= Map =========
+    const map = L.map("map", {
+      zoomControl: false,
+      preferCanvas: true, // ✅ أخف
+      inertia: true
+    }).setView([30.0444, 31.2357], 12);
 
-    // ✅ Tiles ثابتة (بدون سواد)
     const base = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
-      attribution: "&copy; OpenStreetMap"
+      attribution: "&copy; OpenStreetMap",
+      updateWhenZooming: false,      // ✅ أخف
+      updateWhenIdle: true,
+      keepBuffer: 2
     }).addTo(map);
 
     base.on("tileerror", ()=> {
-      msg.textContent = "⚠️ في مشكلة تحميل الخريطة من الشبكة. جرّب بيانات/واي فاي تاني.";
+      msg.textContent = "⚠️ في مشكلة تحميل الخريطة. جرّب شبكة مختلفة.";
     });
 
+    // ✅ يمنع السواد/التهنيج لما يحصل resize/transform
     const fixMap = () => {
-      try { map.invalidateSize(true); } catch {}
-      setTimeout(()=>{ try{ map.invalidateSize(true); }catch{} }, 250);
+      requestAnimationFrame(() => {
+        try { map.invalidateSize(true); } catch {}
+      });
     };
+    setTimeout(fixMap, 200);
+    window.addEventListener("load", () => setTimeout(fixMap, 200));
+    window.addEventListener("resize", () => setTimeout(fixMap, 120));
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) setTimeout(fixMap, 120);
+    });
 
-    setTimeout(fixMap, 450);
-    window.addEventListener("load", ()=> setTimeout(fixMap, 300));
-    document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 250); });
-
-    // ✅ Markers بدون صور (عشان ما تظهرش علامة marker المكسورة)
+    // ========= Markers بدون صور (عشان ما تظهرش أيقونات مكسورة) =========
     const divPin = (emoji) => L.divIcon({
       className: "pin-emoji",
       html: `<div class="pin-bubble">${emoji}</div>`,
@@ -170,7 +182,7 @@
       if(from && to){
         if(line) map.removeLayer(line);
         line = L.polyline([[from.lat, from.lng],[to.lat,to.lng]]).addTo(map);
-        map.fitBounds(line.getBounds(), { padding:[30,30] });
+        map.fitBounds(line.getBounds(), { padding:[30,30], animate:false });
         fixMap();
       }
     }
@@ -178,14 +190,15 @@
     function setFrom(lat,lng){
       from={lat,lng};
       if(fromMarker) map.removeLayer(fromMarker);
-      fromMarker = L.marker([lat,lng], { icon: divPin("🚩") }).addTo(map).bindPopup("🚩 القيام").openPopup();
+      fromMarker = L.marker([lat,lng], { icon: divPin("🚩") }).addTo(map).bindPopup("🚩 القيام");
       map.setView([lat,lng], 14, { animate:false });
       drawLine(); updateUI(); fixMap();
     }
+
     function setTo(lat,lng){
       to={lat,lng};
       if(toMarker) map.removeLayer(toMarker);
-      toMarker = L.marker([lat,lng], { icon: divPin("🏁") }).addTo(map).bindPopup("🏁 الوصول").openPopup();
+      toMarker = L.marker([lat,lng], { icon: divPin("🏁") }).addTo(map).bindPopup("🏁 الوصول");
       map.setView([lat,lng], 14, { animate:false });
       drawLine(); updateUI(); fixMap();
     }
@@ -222,11 +235,12 @@
         "Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
     }
 
-    // ✅ موقعي (بدون سواد + بدون أيقونات صور)
+    // ✅ موقعي (ثابت + يمنع الشاشة السودا)
     document.getElementById("myLocBtn").addEventListener("click", ()=>{
-      msg.textContent = "جارٍ طلب الموقع…";
+      msg.textContent = "جارٍ تحديد موقعك…";
       if(!navigator.geolocation) return msg.textContent="جهازك لا يدعم تحديد الموقع.";
 
+      // مهم جداً: ثبت حجم الخريطة قبل وبعد التحريك
       fixMap();
 
       navigator.geolocation.getCurrentPosition((pos)=>{
@@ -237,15 +251,21 @@
 
         if(myMarker) map.removeLayer(myMarker);
 
-        // ✅ دائرة (مش صورة) = مفيش marker مكسور
+        // دائرة + نقطة (بدون صور)
+        const acc = Math.max(15, Math.min(250, Number(pos.coords.accuracy || 40)));
+        L.circle([lat,lng], { radius: acc }).addTo(map);
+
         myMarker = L.circleMarker([lat,lng], {
-          radius: 9,
+          radius: 8,
           weight: 2,
-          fillOpacity: 0.8
-        }).addTo(map).bindPopup("📍 موقعك").openPopup();
+          fillOpacity: 0.85
+        }).addTo(map).bindPopup("📍 موقعك");
 
         map.setView([lat,lng], 16, { animate:false });
-        fixMap();
+
+        // كمان مرة بعد التحريك
+        setTimeout(fixMap, 80);
+        setTimeout(fixMap, 240);
 
       }, (err)=>{
         console.error(err);
@@ -255,7 +275,7 @@
         }else{
           msg.textContent="تعذر تحديد الموقع الآن. جرّب تاني.";
         }
-        fixMap();
+        setTimeout(fixMap, 120);
       }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
     });
 
@@ -369,7 +389,7 @@
     updateUI();
 
     // =========================
-    // ✅ Drag Bottom Sheet (Handle ONLY)
+    // ✅ Drag Bottom Sheet (Handle ONLY) - خفيف ومابيخفيش الأزرار
     // =========================
     const sheet   = document.getElementById("sheet");
     const handle  = document.getElementById("sheetHandle");
@@ -379,9 +399,9 @@
 
     const getPoints = () => {
       const vh = window.innerHeight;
-      const collapsed = Math.max(120, Math.round(vh * 0.18));
-      const mid       = Math.round(vh * 0.42);
-      const expanded  = Math.round(vh * 0.78);
+      const collapsed = Math.max(140, Math.round(vh * 0.22)); // ✅ أكبر عشان الأزرار ماتختفيش
+      const mid       = Math.round(vh * 0.48);
+      const expanded  = Math.round(vh * 0.82);
       return { collapsed, mid, expanded };
     };
 
@@ -392,10 +412,10 @@
 
     function render(y, animate=true){
       current = clamp(y, points.collapsed, points.expanded);
-      sheet.style.transition = animate ? "transform .18s ease" : "none";
+      sheet.style.transition = animate ? "transform .14s ease" : "none";
       sheet.style.transform  = `translateY(${points.expanded - current}px)`;
-      content.style.maxHeight = (current >= points.mid) ? "70vh" : "55vh";
-      if(animate) setTimeout(()=> sheet.style.transition="", 200);
+      content.style.maxHeight = (current >= points.mid) ? "72vh" : "58vh";
+      if(animate) setTimeout(()=> sheet.style.transition="", 180);
     }
 
     function nearestSnap(y){
@@ -423,7 +443,7 @@
       dragging = false;
       sheet.classList.remove("dragging");
       render(nearestSnap(current), true);
-      setTimeout(fixMap, 220);
+      setTimeout(fixMap, 120);
     }
 
     render(current, false);
@@ -440,7 +460,7 @@
       points = getPoints();
       current = clamp(current, points.collapsed, points.expanded);
       render(current, false);
-      setTimeout(fixMap, 220);
+      setTimeout(fixMap, 120);
     });
   </script>
 </body>
