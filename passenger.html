@@ -1,4 +1,3 @@
-<!-- passenger.html -->
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -86,46 +85,43 @@
       doc, onSnapshot
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    // ✅ Leaflet marker icons fix
-    L.Icon.Default.mergeOptions({
-      iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-      iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-      shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-    });
+    const msg = document.getElementById("msg");
 
     const map = L.map("map", { zoomControl:false }).setView([30.0444, 31.2357], 12);
 
-    // ✅ base layer as const (needed for redraw fix)
-    const base = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    // ✅ Tiles ثابتة (بدون سواد)
+    const base = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      updateWhenIdle: true,
-      keepBuffer: 6
+      attribution: "&copy; OpenStreetMap"
     }).addTo(map);
 
-    // ✅ initial size fix
-    setTimeout(() => map.invalidateSize(true), 450);
+    base.on("tileerror", ()=> {
+      msg.textContent = "⚠️ في مشكلة تحميل الخريطة من الشبكة. جرّب بيانات/واي فاي تاني.";
+    });
 
-    // ✅ Fix black map after geolocation / mobile UI changes
-    function fixMap(){
-      try{
-        map.invalidateSize(true);
-        if (base && base.redraw) base.redraw();
-      }catch(_){}
-      setTimeout(()=>{
-        try{
-          map.invalidateSize(true);
-          if (base && base.redraw) base.redraw();
-        }catch(_){}
-      }, 350);
-    }
+    const fixMap = () => {
+      try { map.invalidateSize(true); } catch {}
+      setTimeout(()=>{ try{ map.invalidateSize(true); }catch{} }, 250);
+    };
+
+    setTimeout(fixMap, 450);
+    window.addEventListener("load", ()=> setTimeout(fixMap, 300));
+    document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 250); });
+
+    // ✅ Markers بدون صور (عشان ما تظهرش علامة marker المكسورة)
+    const divPin = (emoji) => L.divIcon({
+      className: "pin-emoji",
+      html: `<div class="pin-bubble">${emoji}</div>`,
+      iconSize: [44,44],
+      iconAnchor: [22,44],
+      popupAnchor: [0,-36]
+    });
 
     let from=null, to=null, fromMarker=null, toMarker=null, line=null, myMarker=null;
 
     const statusPill = document.getElementById("statusPill");
     const ridePill   = document.getElementById("ridePill");
     const permPill   = document.getElementById("permPill");
-    const msg        = document.getElementById("msg");
     const createBtn  = document.getElementById("createBtn");
 
     const fromText = document.getElementById("fromText");
@@ -182,20 +178,16 @@
     function setFrom(lat,lng){
       from={lat,lng};
       if(fromMarker) map.removeLayer(fromMarker);
-      fromMarker = L.marker([lat,lng]).addTo(map).bindPopup("🚩 القيام").openPopup();
-      fixMap();
-      map.setView([lat,lng], 14);
-      fixMap();
-      drawLine(); updateUI();
+      fromMarker = L.marker([lat,lng], { icon: divPin("🚩") }).addTo(map).bindPopup("🚩 القيام").openPopup();
+      map.setView([lat,lng], 14, { animate:false });
+      drawLine(); updateUI(); fixMap();
     }
     function setTo(lat,lng){
       to={lat,lng};
       if(toMarker) map.removeLayer(toMarker);
-      toMarker = L.marker([lat,lng]).addTo(map).bindPopup("🏁 الوصول").openPopup();
-      fixMap();
-      map.setView([lat,lng], 14);
-      fixMap();
-      drawLine(); updateUI();
+      toMarker = L.marker([lat,lng], { icon: divPin("🏁") }).addTo(map).bindPopup("🏁 الوصول").openPopup();
+      map.setView([lat,lng], 14, { animate:false });
+      drawLine(); updateUI(); fixMap();
     }
 
     async function geocode(q){
@@ -230,7 +222,7 @@
         "Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
     }
 
-    // ✅ موقعي (نهائي): يمنع السواد + يعيد رسم الخريطة
+    // ✅ موقعي (بدون سواد + بدون أيقونات صور)
     document.getElementById("myLocBtn").addEventListener("click", ()=>{
       msg.textContent = "جارٍ طلب الموقع…";
       if(!navigator.geolocation) return msg.textContent="جهازك لا يدعم تحديد الموقع.";
@@ -244,11 +236,15 @@
         const lat=pos.coords.latitude, lng=pos.coords.longitude;
 
         if(myMarker) map.removeLayer(myMarker);
-        myMarker = L.marker([lat,lng]).addTo(map).bindPopup("📍 موقعك").openPopup();
 
-        // ✅ أهم سطرين
-        fixMap();
-        map.setView([lat,lng], 15);
+        // ✅ دائرة (مش صورة) = مفيش marker مكسور
+        myMarker = L.circleMarker([lat,lng], {
+          radius: 9,
+          weight: 2,
+          fillOpacity: 0.8
+        }).addTo(map).bindPopup("📍 موقعك").openPopup();
+
+        map.setView([lat,lng], 16, { animate:false });
         fixMap();
 
       }, (err)=>{
@@ -259,6 +255,7 @@
         }else{
           msg.textContent="تعذر تحديد الموقع الآن. جرّب تاني.";
         }
+        fixMap();
       }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
     });
 
@@ -365,6 +362,7 @@
         msg.textContent="❌ حصل خطأ. راجع Firestore Rules.";
       }finally{
         updateUI();
+        fixMap();
       }
     });
 
@@ -425,7 +423,7 @@
       dragging = false;
       sheet.classList.remove("dragging");
       render(nearestSnap(current), true);
-      setTimeout(()=> fixMap(), 220);
+      setTimeout(fixMap, 220);
     }
 
     render(current, false);
@@ -442,12 +440,7 @@
       points = getPoints();
       current = clamp(current, points.collapsed, points.expanded);
       render(current, false);
-      setTimeout(()=> fixMap(), 220);
-    });
-
-    // ✅ Extra safety: when page becomes visible again
-    document.addEventListener("visibilitychange", ()=>{
-      if(!document.hidden) setTimeout(()=> fixMap(), 250);
+      setTimeout(fixMap, 220);
     });
   </script>
 </body>
