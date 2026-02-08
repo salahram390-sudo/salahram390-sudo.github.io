@@ -126,12 +126,12 @@ textarea{resize:none}
 .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 .actions .btn{flex:1; min-width:140px}
 
-/* ===== Map full screen ===== */
+/* ===== Map full screen (ثابت على الموبايل) ===== */
 .map-wrap{
   position:relative;
   width:100%;
   height:calc(100vh - 64px);
-  height:calc(100dvh - 64px);
+  height:calc(100dvh - 64px); /* ✅ الأهم */
 }
 #map{
   position:absolute;
@@ -164,24 +164,34 @@ textarea{resize:none}
   background: linear-gradient(180deg, rgba(12,18,32,.92), rgba(10,18,34,.82));
   border:1px solid var(--stroke);
   box-shadow: var(--shadow);
-  max-height:72vh;
+
+  /* ✅ خليها أكبر شوية عشان الأزرار ماتختفيش */
+  max-height:82vh;
   overflow:hidden;
+
   will-change: transform;
-  touch-action:none;
+
+  /* ❌ ممنوع هنا (بيبوّظ اللمس والخريطة) */
+  touch-action:auto;
 }
+
+/* ✅ السحب على الـ Handle فقط */
 .sheet-handle{
   width:52px;height:5px;border-radius:999px;margin:0 auto 10px;
   background: rgba(255,255,255,.18);
   cursor:grab;
-  touch-action:none;
+
+  touch-action:none; /* ✅ هنا بس */
 }
 .sheet.dragging .sheet-handle{cursor:grabbing}
+
+/* ✅ السكول جوه الشيت فقط */
 .sheet-content{
-  max-height:calc(72vh - 18px);
+  max-height:calc(82vh - 18px);
   overflow:auto;
   -webkit-overflow-scrolling:touch;
   touch-action:pan-y;
-  padding-bottom:10px;
+  padding-bottom:16px; /* ✅ مساحة للأزرار */
 }
 
 /* ===== Mobile tweaks ===== */
