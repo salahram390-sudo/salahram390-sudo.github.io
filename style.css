@@ -13,11 +13,12 @@
 }
 
 *{box-sizing:border-box}
+
 html,body{
   height:100%;
   margin:0;
   padding:0;
-  overflow:hidden; /* ✅ مهم للموبايل */
+  overflow:hidden; /* ✅ يمنع الصفحة تتحرك وتبوظ الخريطة */
 }
 
 body{
@@ -145,7 +146,10 @@ textarea{resize:none}
   width:100%;
   height:100%;
 }
-.leaflet-container{background:#0a0f16 !important}
+.leaflet-container{
+  background:#0a0f16 !important;
+  touch-action:none; /* ✅ يمنع اللمس يبوظ شكل الخريطة */
+}
 
 /* ===== Bottom sheet (Uber-like) ===== */
 .sheet{
@@ -162,12 +166,12 @@ textarea{resize:none}
   box-shadow: var(--shadow);
 
   max-height:72vh;
-  overflow:hidden; /* ✅ المحتوى هو اللي يسكول */
+  overflow:hidden; /* ✅ السكول جوه المحتوى */
 
   will-change: transform;
   transform: translateY(0);
 
-  /* ✅ يضمن السحب على الموبايل */
+  /* ✅ مهم للسحب */
   touch-action:none;
 }
 
@@ -179,7 +183,7 @@ textarea{resize:none}
 }
 .sheet.dragging .sheet-handle{cursor:grabbing}
 
-/* ✅ السكول يبقى جوه الشيت فقط */
+/* ✅ السكول جوه الشيت فقط */
 .sheet-content{
   max-height:calc(72vh - 18px);
   overflow:auto;
