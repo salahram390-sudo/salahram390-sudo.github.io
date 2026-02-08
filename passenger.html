@@ -9,6 +9,10 @@
   <meta http-equiv="Permissions-Policy" content="geolocation=(self)">
   <meta name="theme-color" content="#070A10" />
 
+  <!-- ✅ مهم جداً لتجنب ظهور شريط المتصفح / الايقونات -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
@@ -42,7 +46,7 @@
             <label>مكان القيام</label>
             <div class="grid3">
               <input id="fromText" placeholder="مثال: مدينة نصر، القاهرة" />
-              <button class="btn" id="fromSearchBtn">بحث</button>
+              <button class="btn" id="fromSearchBtn" type="button">بحث</button>
             </div>
           </div>
 
@@ -50,7 +54,7 @@
             <label>مكان الوصول</label>
             <div class="grid3">
               <input id="toText" placeholder="مثال: الهرم، الجيزة" />
-              <button class="btn" id="toSearchBtn">بحث</button>
+              <button class="btn" id="toSearchBtn" type="button">بحث</button>
             </div>
           </div>
         </div>
@@ -64,9 +68,9 @@
         <div id="contactBox" class="card" style="margin-top:12px; display:none"></div>
 
         <div class="actions">
-          <button class="btn primary" id="createBtn" disabled>اطلب مشوار</button>
-          <button class="btn" id="myLocBtn">📍 موقعي</button>
-          <button class="btn" id="resetBtn">إعادة</button>
+          <button class="btn primary" id="createBtn" disabled type="button">اطلب مشوار</button>
+          <button class="btn" id="myLocBtn" type="button">📍 موقعي</button>
+          <button class="btn" id="resetBtn" type="button">إعادة</button>
         </div>
 
         <div id="msg" class="hint" style="margin-top:10px"></div>
@@ -92,14 +96,26 @@
       shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
     });
 
-    const map = L.map("map", { zoomControl:false }).setView([30.0444, 31.2357], 12);
+    // ✅ منع سحب الصفحة على الموبايل (يخلي الخريطة شغالة صح)
+    document.addEventListener("touchmove", (e)=>{
+      // نخلي السكول فقط داخل sheet-content
+      const el = e.target.closest?.(".sheet-content");
+      if(!el) e.preventDefault();
+    }, { passive:false });
+
+    const map = L.map("map", {
+      zoomControl:false,
+      dragging:true,
+      tap:false
+    }).setView([30.0444, 31.2357], 12);
 
     L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap &copy; CARTO'
     }).addTo(map);
 
-    setTimeout(() => map.invalidateSize(), 450);
+    // ✅ Fix map size on mobile
+    setTimeout(() => map.invalidateSize(), 600);
 
     let from=null, to=null, fromMarker=null, toMarker=null, line=null, myMarker=null;
 
@@ -162,14 +178,15 @@
     function setFrom(lat,lng){
       from={lat,lng};
       if(fromMarker) map.removeLayer(fromMarker);
-      fromMarker = L.marker([lat,lng]).addTo(map).bindPopup("🚩 القيام").openPopup();
+      fromMarker = L.marker([lat,lng]).addTo(map).bindPopup("🚩 القيام");
       map.setView([lat,lng], 14);
       drawLine(); updateUI();
     }
+
     function setTo(lat,lng){
       to={lat,lng};
       if(toMarker) map.removeLayer(toMarker);
-      toMarker = L.marker([lat,lng]).addTo(map).bindPopup("🏁 الوصول").openPopup();
+      toMarker = L.marker([lat,lng]).addTo(map).bindPopup("🏁 الوصول");
       map.setView([lat,lng], 14);
       drawLine(); updateUI();
     }
@@ -206,27 +223,67 @@
         "Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
     }
 
-    document.getElementById("myLocBtn").addEventListener("click", ()=>{
-      msg.textContent = "جارٍ طلب الموقع…";
-      if(!navigator.geolocation) return msg.textContent="جهازك لا يدعم تحديد الموقع.";
+    // =========================
+    // ✅ Fix حقيقي لمشكلة موقعي + الأيقونات
+    // =========================
+    function isSecureContextOk(){
+      // TWA/https = true
+      // http = false
+      return window.isSecureContext || location.protocol === "https:";
+    }
 
-      navigator.geolocation.getCurrentPosition((pos)=>{
-        setPermPill("granted");
-        msg.textContent = "";
-        const lat=pos.coords.latitude, lng=pos.coords.longitude;
-        if(myMarker) map.removeLayer(myMarker);
-        myMarker = L.marker([lat,lng]).addTo(map).bindPopup("📍 موقعك").openPopup();
-        map.setView([lat,lng], 16);
-      }, (err)=>{
-        console.error(err);
-        if(err?.code === 1){
-          setPermPill("denied");
-          explainLocationDenied();
-        }else{
-          msg.textContent="تعذر تحديد الموقع الآن. جرّب تاني.";
+    function askLocation(){
+      msg.textContent = "";
+
+      if(!isSecureContextOk()){
+        msg.textContent = "❌ الموقع لا يعمل إلا على HTTPS أو داخل TWA.";
+        return;
+      }
+
+      if(!navigator.geolocation){
+        msg.textContent = "جهازك لا يدعم تحديد الموقع.";
+        return;
+      }
+
+      msg.textContent = "جارٍ تحديد موقعك…";
+
+      navigator.geolocation.getCurrentPosition(
+        (pos)=>{
+          setPermPill("granted");
+          msg.textContent = "";
+
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+
+          if(myMarker) map.removeLayer(myMarker);
+          myMarker = L.marker([lat,lng]).addTo(map).bindPopup("📍 موقعك");
+          map.setView([lat,lng], 16);
+
+          // ✅ أهم سطر لمنع شكل الخريطة الغريب بعد الضغط
+          setTimeout(()=> map.invalidateSize(), 250);
+        },
+        (err)=>{
+          console.error(err);
+          if(err?.code === 1){
+            setPermPill("denied");
+            explainLocationDenied();
+          }else if(err?.code === 2){
+            msg.textContent = "❌ GPS غير متاح حالياً. فعّل الموقع من شريط الهاتف.";
+          }else if(err?.code === 3){
+            msg.textContent = "⌛ تحديد الموقع تأخر. جرّب تاني.";
+          }else{
+            msg.textContent = "تعذر تحديد الموقع الآن. جرّب تاني.";
+          }
+        },
+        {
+          enableHighAccuracy:true,
+          timeout:20000,
+          maximumAge:0
         }
-      }, { enableHighAccuracy:true, timeout:15000, maximumAge:0 });
-    });
+      );
+    }
+
+    document.getElementById("myLocBtn").addEventListener("click", askLocation);
 
     document.getElementById("resetBtn").addEventListener("click", ()=>{
       from=null;to=null;
@@ -237,6 +294,7 @@
       contactBox.style.display="none";
       contactBox.innerHTML="";
       updateUI();
+      setTimeout(()=> map.invalidateSize(), 200);
     });
 
     function toWhatsappNumber(phone){
@@ -289,8 +347,8 @@
             </div>
             <div class="row" style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
               ${dPhone ? `<a class="btn success" href="tel:${dPhone}">اتصال</a>` : ``}
-              ${waNum ? `<a class="btn" target="_blank" href="https://wa.me/${waNum}">واتساب</a>` : ``}
-              ${mapLink ? `<a class="btn" target="_blank" href="${mapLink}">فتح الانطلاق</a>` : ``}
+              ${waNum ? `<a class="btn" target="_blank" rel="noopener" href="https://wa.me/${waNum}">واتساب</a>` : ``}
+              ${mapLink ? `<a class="btn" target="_blank" rel="noopener" href="${mapLink}">فتح الانطلاق</a>` : ``}
             </div>
           `;
         }
