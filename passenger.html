@@ -87,77 +87,28 @@
 
     const msg = document.getElementById("msg");
 
-    const map = L.map("map", {
-      zoomControl:false,
-      preferCanvas:true,
-      fadeAnimation:false,
-      zoomAnimation:false
-    }).setView([30.0444, 31.2357], 12);
+    const map = L.map("map", { zoomControl:false }).setView([30.0444, 31.2357], 12);
 
-    // =========================
-    // ✅ Tiles: 2 Providers + Auto Switch on tileerror
-    // =========================
-    const tileCarto = L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-      { maxZoom: 19, attribution: "&copy; OpenStreetMap &copy; CARTO" }
-    );
+    // ✅ Tiles ثابتة (بدون سواد)
+    const base = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(map);
 
-    const tileOSM = L.tileLayer(
-      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-      { maxZoom: 19, attribution: "&copy; OpenStreetMap" }
-    );
+    base.on("tileerror", ()=> {
+      msg.textContent = "⚠️ في مشكلة تحميل الخريطة من الشبكة. جرّب بيانات/واي فاي تاني.";
+    });
 
-    let activeTiles = tileCarto;
-    activeTiles.addTo(map);
+    const fixMap = () => {
+      try { map.invalidateSize(true); } catch {}
+      setTimeout(()=>{ try{ map.invalidateSize(true); }catch{} }, 250);
+    };
 
-    let tileErrors = 0;
-    let switchedRecently = false;
+    setTimeout(fixMap, 450);
+    window.addEventListener("load", ()=> setTimeout(fixMap, 300));
+    document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(fixMap, 250); });
 
-    function switchTiles(){
-      if(switchedRecently) return;
-      switchedRecently = true;
-      setTimeout(()=> switchedRecently=false, 1500);
-
-      tileErrors = 0;
-      map.removeLayer(activeTiles);
-      activeTiles = (activeTiles === tileCarto) ? tileOSM : tileCarto;
-      activeTiles.addTo(map);
-
-      fixMap(true);
-      msg.textContent = "⚠️ تم تبديل مصدر الخريطة تلقائيًا (مشكلة شبكة/حظر Tiles).";
-      setTimeout(()=>{ if(msg.textContent.startsWith("⚠️")) msg.textContent=""; }, 2500);
-    }
-
-    function bindTileErrors(layer){
-      layer.on("tileerror", ()=>{
-        tileErrors++;
-        if(tileErrors >= 3) switchTiles();
-      });
-    }
-    bindTileErrors(tileCarto);
-    bindTileErrors(tileOSM);
-
-    function fixMap(redrawTiles=false){
-      try{ map.invalidateSize(true); }catch{}
-      if(redrawTiles && activeTiles?.redraw) {
-        try{ activeTiles.redraw(); }catch{}
-      }
-      setTimeout(()=>{
-        try{ map.invalidateSize(true); }catch{}
-        if(redrawTiles && activeTiles?.redraw) {
-          try{ activeTiles.redraw(); }catch{}
-        }
-      }, 250);
-    }
-
-    map.whenReady(()=> setTimeout(()=> fixMap(true), 300));
-    window.addEventListener("load", ()=> setTimeout(()=> fixMap(true), 350));
-    window.addEventListener("resize", ()=> setTimeout(()=> fixMap(true), 220));
-    document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) setTimeout(()=> fixMap(true), 300); });
-
-    // =========================
-    // ✅ Markers بدون صور خارجية (مفيش Marker مكسور)
-    // =========================
+    // ✅ Markers بدون صور (عشان ما تظهرش علامة marker المكسورة)
     const divPin = (emoji) => L.divIcon({
       className: "pin-emoji",
       html: `<div class="pin-bubble">${emoji}</div>`,
@@ -220,7 +171,7 @@
         if(line) map.removeLayer(line);
         line = L.polyline([[from.lat, from.lng],[to.lat,to.lng]]).addTo(map);
         map.fitBounds(line.getBounds(), { padding:[30,30] });
-        fixMap(true);
+        fixMap();
       }
     }
 
@@ -229,14 +180,14 @@
       if(fromMarker) map.removeLayer(fromMarker);
       fromMarker = L.marker([lat,lng], { icon: divPin("🚩") }).addTo(map).bindPopup("🚩 القيام").openPopup();
       map.setView([lat,lng], 14, { animate:false });
-      drawLine(); updateUI(); fixMap(true);
+      drawLine(); updateUI(); fixMap();
     }
     function setTo(lat,lng){
       to={lat,lng};
       if(toMarker) map.removeLayer(toMarker);
       toMarker = L.marker([lat,lng], { icon: divPin("🏁") }).addTo(map).bindPopup("🏁 الوصول").openPopup();
       map.setView([lat,lng], 14, { animate:false });
-      drawLine(); updateUI(); fixMap(true);
+      drawLine(); updateUI(); fixMap();
     }
 
     async function geocode(q){
@@ -271,12 +222,12 @@
         "Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
     }
 
-    // ✅ زر موقعي (مع redraw + fallback)
+    // ✅ موقعي (بدون سواد + بدون أيقونات صور)
     document.getElementById("myLocBtn").addEventListener("click", ()=>{
       msg.textContent = "جارٍ طلب الموقع…";
       if(!navigator.geolocation) return msg.textContent="جهازك لا يدعم تحديد الموقع.";
 
-      fixMap(true);
+      fixMap();
 
       navigator.geolocation.getCurrentPosition((pos)=>{
         setPermPill("granted");
@@ -286,6 +237,7 @@
 
         if(myMarker) map.removeLayer(myMarker);
 
+        // ✅ دائرة (مش صورة) = مفيش marker مكسور
         myMarker = L.circleMarker([lat,lng], {
           radius: 9,
           weight: 2,
@@ -293,7 +245,7 @@
         }).addTo(map).bindPopup("📍 موقعك").openPopup();
 
         map.setView([lat,lng], 16, { animate:false });
-        fixMap(true);
+        fixMap();
 
       }, (err)=>{
         console.error(err);
@@ -303,7 +255,7 @@
         }else{
           msg.textContent="تعذر تحديد الموقع الآن. جرّب تاني.";
         }
-        fixMap(true);
+        fixMap();
       }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
     });
 
@@ -316,7 +268,7 @@
       contactBox.style.display="none";
       contactBox.innerHTML="";
       updateUI();
-      fixMap(true);
+      fixMap();
     });
 
     function toWhatsappNumber(phone){
@@ -410,7 +362,7 @@
         msg.textContent="❌ حصل خطأ. راجع Firestore Rules.";
       }finally{
         updateUI();
-        fixMap(true);
+        fixMap();
       }
     });
 
@@ -471,7 +423,7 @@
       dragging = false;
       sheet.classList.remove("dragging");
       render(nearestSnap(current), true);
-      setTimeout(()=> fixMap(true), 220);
+      setTimeout(fixMap, 220);
     }
 
     render(current, false);
@@ -488,7 +440,7 @@
       points = getPoints();
       current = clamp(current, points.collapsed, points.expanded);
       render(current, false);
-      setTimeout(()=> fixMap(true), 220);
+      setTimeout(fixMap, 220);
     });
   </script>
 </body>
