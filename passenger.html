@@ -2,17 +2,32 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>مشوارك - راكب</title>
 
   <link rel="stylesheet" href="./style.css">
 
-  <!-- ✅ مهم للـ Location داخل بعض الـ WebViews -->
   <meta http-equiv="Permissions-Policy" content="geolocation=(self)">
+  <meta name="theme-color" content="#070A10" />
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    /* ✅ Drag sheet helpers (خفيفة ومضمونة حتى لو style.css مختلف) */
+    .sheet{ will-change: transform; touch-action:none; }
+    .sheet-content{ max-height:55vh; overflow:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y; }
+    .sheet-handle{ cursor:grab; touch-action:none; }
+    .sheet.dragging .sheet-handle{ cursor:grabbing; }
+    @media (max-width:520px){
+      .topbar-inner.container{padding:10px 12px}
+      .container{padding:12px; max-width:100%}
+      .grid2{grid-template-columns:1fr !important}
+      .actions .btn{min-width:0 !important; flex:1 1 48%}
+    }
+  </style>
 </head>
+
 <body>
   <div class="topbar">
     <div class="topbar-inner container">
@@ -33,43 +48,44 @@
   <div class="map-wrap">
     <div id="map"></div>
 
-    <div class="sheet">
-      <div class="sheet-handle"></div>
+    <div class="sheet" id="sheet">
+      <div class="sheet-handle" id="sheetHandle"></div>
 
-      <div class="grid2">
-        <div class="field" style="margin-top:0">
-          <label>مكان القيام</label>
-          <div class="grid3">
-            <input id="fromText" placeholder="مثال: مدينة نصر، القاهرة" />
-            <button class="btn" id="fromSearchBtn">بحث</button>
+      <div class="sheet-content" id="sheetContent">
+        <div class="grid2">
+          <div class="field" style="margin-top:0">
+            <label>مكان القيام</label>
+            <div class="grid3">
+              <input id="fromText" placeholder="مثال: مدينة نصر، القاهرة" />
+              <button class="btn" id="fromSearchBtn">بحث</button>
+            </div>
+          </div>
+
+          <div class="field" style="margin-top:0">
+            <label>مكان الوصول</label>
+            <div class="grid3">
+              <input id="toText" placeholder="مثال: الهرم، الجيزة" />
+              <button class="btn" id="toSearchBtn">بحث</button>
+            </div>
           </div>
         </div>
 
-        <div class="field" style="margin-top:0">
-          <label>مكان الوصول</label>
-          <div class="grid3">
-            <input id="toText" placeholder="مثال: الهرم، الجيزة" />
-            <button class="btn" id="toSearchBtn">بحث</button>
-          </div>
+        <div class="pills">
+          <span class="pill" id="statusPill">اختر مكان القيام…</span>
+          <span class="pill" id="ridePill">لا يوجد طلب</span>
+          <span class="pill" id="permPill">الموقع: غير معروف</span>
         </div>
+
+        <div id="contactBox" class="card" style="margin-top:12px; display:none"></div>
+
+        <div class="actions">
+          <button class="btn primary" id="createBtn" disabled>اطلب مشوار</button>
+          <button class="btn" id="myLocBtn">📍 موقعي</button>
+          <button class="btn" id="resetBtn">إعادة</button>
+        </div>
+
+        <div id="msg" class="hint" style="margin-top:10px"></div>
       </div>
-
-      <div class="pills">
-        <span class="pill" id="statusPill">اختر مكان القيام…</span>
-        <span class="pill" id="ridePill">لا يوجد طلب</span>
-        <span class="pill" id="permPill">الموقع: غير معروف</span>
-      </div>
-
-      <!-- ✅ صندوق تواصل يظهر عند قبول السائق -->
-      <div id="contactBox" class="card" style="margin-top:12px; display:none"></div>
-
-      <div class="actions">
-        <button class="btn primary" id="createBtn" disabled>اطلب مشوار</button>
-        <button class="btn" id="myLocBtn">📍 موقعي</button>
-        <button class="btn" id="resetBtn">إعادة</button>
-      </div>
-
-      <div id="msg" class="hint" style="margin-top:10px"></div>
     </div>
   </div>
 
@@ -84,47 +100,45 @@
       doc, onSnapshot
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    // ✅ Fix: Leaflet marker icons (بتختفي في GitHub Pages / WebView)
+    // ✅ Leaflet marker icons fix
     L.Icon.Default.mergeOptions({
       iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
       iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
       shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
     });
 
-    const map = L.map("map").setView([30.0444, 31.2357], 12);
+    const map = L.map("map", { zoomControl: false }).setView([30.0444, 31.2357], 12);
 
-    // ✅ Tiles stable
     L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap &copy; CARTO'
     }).addTo(map);
 
-    setTimeout(() => map.invalidateSize(), 350);
+    // ✅ Fix white map on mobile
+    setTimeout(() => map.invalidateSize(), 450);
 
     let from=null, to=null, fromMarker=null, toMarker=null, line=null, myMarker=null;
 
     const statusPill = document.getElementById("statusPill");
-    const ridePill = document.getElementById("ridePill");
-    const permPill = document.getElementById("permPill");
-    const msg = document.getElementById("msg");
-    const createBtn = document.getElementById("createBtn");
+    const ridePill   = document.getElementById("ridePill");
+    const permPill   = document.getElementById("permPill");
+    const msg        = document.getElementById("msg");
+    const createBtn  = document.getElementById("createBtn");
 
     const fromText = document.getElementById("fromText");
-    const toText = document.getElementById("toText");
+    const toText   = document.getElementById("toText");
     const contactBox = document.getElementById("contactBox");
 
     function setPermPill(state){
+      permPill.classList.remove("ok","bad");
       if(state === "granted"){
         permPill.textContent = "الموقع: مسموح ✅";
-        permPill.classList.remove("bad");
         permPill.classList.add("ok");
       }else if(state === "denied"){
         permPill.textContent = "الموقع: مرفوض ❌";
-        permPill.classList.remove("ok");
         permPill.classList.add("bad");
       }else{
         permPill.textContent = "الموقع: غير معروف";
-        permPill.classList.remove("ok","bad");
       }
     }
 
@@ -134,7 +148,7 @@
         const p = await navigator.permissions.query({ name: "geolocation" });
         setPermPill(p.state);
         p.onchange = () => setPermPill(p.state);
-      }catch(_){
+      }catch{
         setPermPill("unknown");
       }
     }
@@ -144,10 +158,10 @@
       if(!from){
         statusPill.textContent = "اختر مكان القيام…";
         createBtn.disabled = true;
-      }else if(from && !to){
+      } else if(from && !to){
         statusPill.textContent = "تم تحديد القيام ✅ اختر الوصول…";
         createBtn.disabled = true;
-      }else{
+      } else {
         statusPill.textContent = "جاهز ✅";
         createBtn.disabled = false;
       }
@@ -157,7 +171,7 @@
       if(from && to){
         if(line) map.removeLayer(line);
         line = L.polyline([[from.lat, from.lng],[to.lat,to.lng]]).addTo(map);
-        map.fitBounds(line.getBounds(), {padding:[30,30]});
+        map.fitBounds(line.getBounds(), { padding:[30,30] });
       }
     }
 
@@ -204,16 +218,18 @@
 
     function explainLocationDenied(){
       msg.innerHTML =
-        "❌ لم يتم السماح بالموقع.<br>" +
-        "لو أنت على APK من WebIntoApp/PWABuilder: افتح إعدادات الموبايل → التطبيقات → (اسم التطبيق) → الأذونات → فعّل <b>الموقع</b>.";
+        "❌ لازم تفعّل إذن الموقع للتطبيق.<br>" +
+        "Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
     }
 
+    // ✅ زر موقعي: يطلع إذن (لو متاح) + يعالج الرفض
     document.getElementById("myLocBtn").addEventListener("click", async ()=>{
-      msg.textContent = "";
+      msg.textContent = "جارٍ طلب الموقع…";
       if(!navigator.geolocation) return msg.textContent="جهازك لا يدعم تحديد الموقع.";
 
       navigator.geolocation.getCurrentPosition((pos)=>{
         setPermPill("granted");
+        msg.textContent = "";
         const lat=pos.coords.latitude, lng=pos.coords.longitude;
         if(myMarker) map.removeLayer(myMarker);
         myMarker = L.marker([lat,lng]).addTo(map).bindPopup("📍 موقعك").openPopup();
@@ -226,7 +242,7 @@
         }else{
           msg.textContent="تعذر تحديد الموقع الآن. جرّب تاني.";
         }
-      }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
+      }, { enableHighAccuracy:true, timeout:15000, maximumAge:0 });
     });
 
     document.getElementById("resetBtn").addEventListener("click", ()=>{
@@ -235,8 +251,8 @@
       [fromMarker,toMarker,line,myMarker].forEach(x=>{ if(x) map.removeLayer(x); });
       fromMarker=toMarker=line=myMarker=null;
       msg.textContent="";
-      contactBox.style.display = "none";
-      contactBox.innerHTML = "";
+      contactBox.style.display="none";
+      contactBox.innerHTML="";
       updateUI();
     });
 
@@ -250,7 +266,6 @@
     }
 
     let unsubRide = null;
-
     function watchRide(rideId){
       if(unsubRide) unsubRide();
       const ref = doc(db, "rides", rideId);
@@ -258,8 +273,8 @@
       unsubRide = onSnapshot(ref, (snap)=>{
         if(!snap.exists()){
           ridePill.textContent = "الطلب غير موجود.";
-          contactBox.style.display = "none";
-          contactBox.innerHTML = "";
+          contactBox.style.display="none";
+          contactBox.innerHTML="";
           return;
         }
 
@@ -267,19 +282,18 @@
 
         if(r.status === "open"){
           ridePill.textContent = "طلبك جارٍ البحث عن سائق…";
-          contactBox.style.display = "none";
-          contactBox.innerHTML = "";
+          contactBox.style.display="none";
+          contactBox.innerHTML="";
         }
 
         if(r.status === "accepted"){
           const dName = r.driverName || "سائق";
           const dPhone = r.driverPhone || "";
-          ridePill.textContent = `✅ السائق وافق`;
+          ridePill.textContent = "✅ السائق وافق";
 
           const waNum = toWhatsappNumber(dPhone);
           const pickupLat = r.from?.lat;
           const pickupLng = r.from?.lng;
-
           const mapLink = (pickupLat && pickupLng)
             ? `https://www.openstreetmap.org/?mlat=${pickupLat}&mlon=${pickupLng}#map=16/${pickupLat}/${pickupLng}`
             : null;
@@ -288,14 +302,13 @@
           contactBox.innerHTML = `
             <div class="kv">
               <b>👤 ${dName}</b>
-              <span>${dPhone ? "📞 " + dPhone : "📞 لا يوجد رقم هاتف"}</span>
+              <span>${dPhone ? "📞 " + dPhone : "📞 لا يوجد رقم"}</span>
             </div>
-            <div class="row" style="margin-top:10px">
+            <div class="row" style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
               ${dPhone ? `<a class="btn success" href="tel:${dPhone}">اتصال</a>` : ``}
               ${waNum ? `<a class="btn" target="_blank" href="https://wa.me/${waNum}">واتساب</a>` : ``}
               ${mapLink ? `<a class="btn" target="_blank" href="${mapLink}">فتح الانطلاق</a>` : ``}
             </div>
-            <div class="small" style="margin-top:8px">لو زر واتساب مش ظاهر: لازم رقم السائق يكون محفوظ في حساب السائق.</div>
           `;
         }
       });
@@ -338,6 +351,83 @@
     });
 
     updateUI();
+
+    // =========================
+    // ✅ Drag Bottom Sheet (Uber-like)
+    // =========================
+    const sheet = document.getElementById("sheet");
+    const handle = document.getElementById("sheetHandle");
+    const content = document.getElementById("sheetContent");
+
+    // Snap points (px from bottom via translateY)
+    const getPoints = () => {
+      const vh = window.innerHeight;
+      const collapsed = Math.max(110, Math.round(vh * 0.16));   // ظاهر بسيط
+      const mid       = Math.round(vh * 0.38);                  // متوسط
+      const expanded  = Math.round(vh * 0.70);                  // كبير
+      return { collapsed, mid, expanded };
+    };
+
+    let points = getPoints();
+    let current = points.mid; // start
+    let startY = 0, startCurrent = 0, dragging = false;
+
+    function apply(y, animate=true){
+      current = Math.max(points.collapsed, Math.min(points.expanded, y));
+      sheet.style.transition = animate ? "transform .18s ease" : "none";
+      sheet.style.transform = `translateY(${points.expanded - current}px)`;
+      // السماح بالسكرول داخل المحتوى فقط عند الفتح الكبير
+      content.style.maxHeight = (current >= points.mid) ? "70vh" : "55vh";
+      setTimeout(()=>{ sheet.style.transition = ""; }, 200);
+    }
+
+    function nearestSnap(y){
+      const arr = [points.collapsed, points.mid, points.expanded];
+      return arr.reduce((a,b)=> (Math.abs(b-y) < Math.abs(a-y) ? b : a), arr[0]);
+    }
+
+    function onDown(e){
+      dragging = true;
+      sheet.classList.add("dragging");
+      startY = (e.touches ? e.touches[0].clientY : e.clientY);
+      startCurrent = current;
+    }
+
+    function onMove(e){
+      if(!dragging) return;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY);
+      const dy = startY - y; // سحب لأعلى = +dy
+      apply(startCurrent + dy, false);
+      e.preventDefault();
+    }
+
+    function onUp(){
+      if(!dragging) return;
+      dragging = false;
+      sheet.classList.remove("dragging");
+      apply(nearestSnap(current), true);
+      // بعد التحريك اعمل invalidate للخريطة
+      setTimeout(()=>map.invalidateSize(), 220);
+    }
+
+    // start initial position
+    apply(current, false);
+
+    // Drag handle + (السحب من أعلى الشيت كمان)
+    handle.addEventListener("touchstart", onDown, {passive:false});
+    handle.addEventListener("touchmove", onMove, {passive:false});
+    handle.addEventListener("touchend", onUp);
+
+    handle.addEventListener("mousedown", onDown);
+    window.addEventListener("mousemove", onMove, {passive:false});
+    window.addEventListener("mouseup", onUp);
+
+    // تحديث النقاط عند دوران الشاشة
+    window.addEventListener("resize", ()=>{
+      points = getPoints();
+      apply(Math.min(current, points.expanded), false);
+      setTimeout(()=>map.invalidateSize(), 220);
+    });
   </script>
 </body>
 </html>
