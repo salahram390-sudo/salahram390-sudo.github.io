@@ -6,26 +6,11 @@
   <title>مشوارك - راكب</title>
 
   <link rel="stylesheet" href="./style.css">
-
   <meta http-equiv="Permissions-Policy" content="geolocation=(self)">
   <meta name="theme-color" content="#070A10" />
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <style>
-    /* ✅ Drag sheet helpers (خفيفة ومضمونة حتى لو style.css مختلف) */
-    .sheet{ will-change: transform; touch-action:none; }
-    .sheet-content{ max-height:55vh; overflow:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y; }
-    .sheet-handle{ cursor:grab; touch-action:none; }
-    .sheet.dragging .sheet-handle{ cursor:grabbing; }
-    @media (max-width:520px){
-      .topbar-inner.container{padding:10px 12px}
-      .container{padding:12px; max-width:100%}
-      .grid2{grid-template-columns:1fr !important}
-      .actions .btn{min-width:0 !important; flex:1 1 48%}
-    }
-  </style>
 </head>
 
 <body>
@@ -107,14 +92,13 @@
       shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
     });
 
-    const map = L.map("map", { zoomControl: false }).setView([30.0444, 31.2357], 12);
+    const map = L.map("map", { zoomControl:false }).setView([30.0444, 31.2357], 12);
 
     L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap &copy; CARTO'
     }).addTo(map);
 
-    // ✅ Fix white map on mobile
     setTimeout(() => map.invalidateSize(), 450);
 
     let from=null, to=null, fromMarker=null, toMarker=null, line=null, myMarker=null;
@@ -222,8 +206,7 @@
         "Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
     }
 
-    // ✅ زر موقعي: يطلع إذن (لو متاح) + يعالج الرفض
-    document.getElementById("myLocBtn").addEventListener("click", async ()=>{
+    document.getElementById("myLocBtn").addEventListener("click", ()=>{
       msg.textContent = "جارٍ طلب الموقع…";
       if(!navigator.geolocation) return msg.textContent="جهازك لا يدعم تحديد الموقع.";
 
@@ -353,32 +336,33 @@
     updateUI();
 
     // =========================
-    // ✅ Drag Bottom Sheet (Uber-like)
+    // ✅ Drag Bottom Sheet (Handle ONLY)
     // =========================
-    const sheet = document.getElementById("sheet");
-    const handle = document.getElementById("sheetHandle");
+    const sheet   = document.getElementById("sheet");
+    const handle  = document.getElementById("sheetHandle");
     const content = document.getElementById("sheetContent");
 
-    // Snap points (px from bottom via translateY)
+    const clamp = (v,min,max)=> Math.max(min, Math.min(max, v));
+
     const getPoints = () => {
       const vh = window.innerHeight;
-      const collapsed = Math.max(110, Math.round(vh * 0.16));   // ظاهر بسيط
-      const mid       = Math.round(vh * 0.38);                  // متوسط
-      const expanded  = Math.round(vh * 0.70);                  // كبير
+      const collapsed = Math.max(120, Math.round(vh * 0.18));
+      const mid       = Math.round(vh * 0.42);
+      const expanded  = Math.round(vh * 0.78);
       return { collapsed, mid, expanded };
     };
 
     let points = getPoints();
-    let current = points.mid; // start
+    let current = points.mid;
+
     let startY = 0, startCurrent = 0, dragging = false;
 
-    function apply(y, animate=true){
-      current = Math.max(points.collapsed, Math.min(points.expanded, y));
+    function render(y, animate=true){
+      current = clamp(y, points.collapsed, points.expanded);
       sheet.style.transition = animate ? "transform .18s ease" : "none";
-      sheet.style.transform = `translateY(${points.expanded - current}px)`;
-      // السماح بالسكرول داخل المحتوى فقط عند الفتح الكبير
+      sheet.style.transform  = `translateY(${points.expanded - current}px)`;
       content.style.maxHeight = (current >= points.mid) ? "70vh" : "55vh";
-      setTimeout(()=>{ sheet.style.transition = ""; }, 200);
+      if(animate) setTimeout(()=> sheet.style.transition="", 200);
     }
 
     function nearestSnap(y){
@@ -386,47 +370,44 @@
       return arr.reduce((a,b)=> (Math.abs(b-y) < Math.abs(a-y) ? b : a), arr[0]);
     }
 
-    function onDown(e){
+    function down(e){
       dragging = true;
       sheet.classList.add("dragging");
       startY = (e.touches ? e.touches[0].clientY : e.clientY);
       startCurrent = current;
     }
 
-    function onMove(e){
+    function move(e){
       if(!dragging) return;
       const y = (e.touches ? e.touches[0].clientY : e.clientY);
-      const dy = startY - y; // سحب لأعلى = +dy
-      apply(startCurrent + dy, false);
+      const dy = startY - y;
+      render(startCurrent + dy, false);
       e.preventDefault();
     }
 
-    function onUp(){
+    function up(){
       if(!dragging) return;
       dragging = false;
       sheet.classList.remove("dragging");
-      apply(nearestSnap(current), true);
-      // بعد التحريك اعمل invalidate للخريطة
-      setTimeout(()=>map.invalidateSize(), 220);
+      render(nearestSnap(current), true);
+      setTimeout(()=> map.invalidateSize(), 220);
     }
 
-    // start initial position
-    apply(current, false);
+    render(current, false);
 
-    // Drag handle + (السحب من أعلى الشيت كمان)
-    handle.addEventListener("touchstart", onDown, {passive:false});
-    handle.addEventListener("touchmove", onMove, {passive:false});
-    handle.addEventListener("touchend", onUp);
+    handle.addEventListener("touchstart", down, {passive:false});
+    handle.addEventListener("touchmove", move, {passive:false});
+    handle.addEventListener("touchend", up);
 
-    handle.addEventListener("mousedown", onDown);
-    window.addEventListener("mousemove", onMove, {passive:false});
-    window.addEventListener("mouseup", onUp);
+    handle.addEventListener("mousedown", down);
+    window.addEventListener("mousemove", move, {passive:false});
+    window.addEventListener("mouseup", up);
 
-    // تحديث النقاط عند دوران الشاشة
     window.addEventListener("resize", ()=>{
       points = getPoints();
-      apply(Math.min(current, points.expanded), false);
-      setTimeout(()=>map.invalidateSize(), 220);
+      current = clamp(current, points.collapsed, points.expanded);
+      render(current, false);
+      setTimeout(()=> map.invalidateSize(), 220);
     });
   </script>
 </body>
