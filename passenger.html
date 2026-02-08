@@ -1,3 +1,4 @@
+<!-- passenger.html -->
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -92,41 +93,34 @@
       shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
     });
 
-    // ✅ Map
     const map = L.map("map", { zoomControl:false }).setView([30.0444, 31.2357], 12);
 
-    // ✅ Tiles (Fix: لو CARTO وقع/اتحجب، نحول لـ OSM تلقائي)
-    const carto = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    // ✅ base layer as const (needed for redraw fix)
+    const base = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap &copy; CARTO',
-      subdomains: "abcd",
-      crossOrigin: true
-    });
+      updateWhenIdle: true,
+      keepBuffer: 6
+    }).addTo(map);
 
-    const osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap',
-      crossOrigin: true
-    });
+    // ✅ initial size fix
+    setTimeout(() => map.invalidateSize(true), 450);
 
-    // ابدأ بـ CARTO
-    carto.addTo(map);
+    // ✅ Fix black map after geolocation / mobile UI changes
+    function fixMap(){
+      try{
+        map.invalidateSize(true);
+        if (base && base.redraw) base.redraw();
+      }catch(_){}
+      setTimeout(()=>{
+        try{
+          map.invalidateSize(true);
+          if (base && base.redraw) base.redraw();
+        }catch(_){}
+      }, 350);
+    }
 
-    // لو التايلز فشلت => Switch لـ OSM
-    let switched = false;
-    carto.on("tileerror", () => {
-      if (switched) return;
-      switched = true;
-      try { map.removeLayer(carto); } catch(e){}
-      osm.addTo(map);
-    });
-
-    // ✅ invalidate size مضبوط
-    const forceResize = () => { try { map.invalidateSize(); } catch(e){} };
-    setTimeout(forceResize, 300);
-    window.addEventListener("resize", () => setTimeout(forceResize, 200));
-
-    let from=null, to=null, fromMarker=null, toMarker=null, line=null, myMarker=null, accuracyCircle=null;
+    let from=null, to=null, fromMarker=null, toMarker=null, line=null, myMarker=null;
 
     const statusPill = document.getElementById("statusPill");
     const ridePill   = document.getElementById("ridePill");
@@ -181,6 +175,7 @@
         if(line) map.removeLayer(line);
         line = L.polyline([[from.lat, from.lng],[to.lat,to.lng]]).addTo(map);
         map.fitBounds(line.getBounds(), { padding:[30,30] });
+        fixMap();
       }
     }
 
@@ -188,14 +183,18 @@
       from={lat,lng};
       if(fromMarker) map.removeLayer(fromMarker);
       fromMarker = L.marker([lat,lng]).addTo(map).bindPopup("🚩 القيام").openPopup();
+      fixMap();
       map.setView([lat,lng], 14);
+      fixMap();
       drawLine(); updateUI();
     }
     function setTo(lat,lng){
       to={lat,lng};
       if(toMarker) map.removeLayer(toMarker);
       toMarker = L.marker([lat,lng]).addTo(map).bindPopup("🏁 الوصول").openPopup();
+      fixMap();
       map.setView([lat,lng], 14);
+      fixMap();
       drawLine(); updateUI();
     }
 
@@ -231,105 +230,48 @@
         "Android: الإعدادات → التطبيقات → مشوارك → الأذونات → الموقع → سماح.";
     }
 
-    // ✅ FIX النهائي لزر موقعي: Leaflet locate + fallback
-    const myLocBtn = document.getElementById("myLocBtn");
+    // ✅ موقعي (نهائي): يمنع السواد + يعيد رسم الخريطة
+    document.getElementById("myLocBtn").addEventListener("click", ()=>{
+      msg.textContent = "جارٍ طلب الموقع…";
+      if(!navigator.geolocation) return msg.textContent="جهازك لا يدعم تحديد الموقع.";
 
-    function clearMyLoc(){
-      if(myMarker) map.removeLayer(myMarker);
-      if(accuracyCircle) map.removeLayer(accuracyCircle);
-      myMarker = null;
-      accuracyCircle = null;
-    }
+      fixMap();
 
-    map.on("locationfound", (e) => {
-      setPermPill("granted");
-      msg.textContent = "";
-      clearMyLoc();
+      navigator.geolocation.getCurrentPosition((pos)=>{
+        setPermPill("granted");
+        msg.textContent = "";
 
-      myMarker = L.marker(e.latlng).addTo(map).bindPopup("📍 موقعك").openPopup();
+        const lat=pos.coords.latitude, lng=pos.coords.longitude;
 
-      if (Number.isFinite(e.accuracy)) {
-        accuracyCircle = L.circle(e.latlng, { radius: e.accuracy }).addTo(map);
-      }
+        if(myMarker) map.removeLayer(myMarker);
+        myMarker = L.marker([lat,lng]).addTo(map).bindPopup("📍 موقعك").openPopup();
 
-      map.setView(e.latlng, 16);
-      setTimeout(forceResize, 250);
-      myLocBtn.disabled = false;
-    });
+        // ✅ أهم سطرين
+        fixMap();
+        map.setView([lat,lng], 15);
+        fixMap();
 
-    map.on("locationerror", (e) => {
-      console.error(e);
-      myLocBtn.disabled = false;
-
-      // Permission denied
-      if (String(e.message || "").toLowerCase().includes("denied")) {
-        setPermPill("denied");
-        explainLocationDenied();
-        return;
-      }
-
-      // Fallback to navigator.geolocation direct
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((pos) => {
-          setPermPill("granted");
-          msg.textContent = "";
-          clearMyLoc();
-
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-
-          myMarker = L.marker([lat,lng]).addTo(map).bindPopup("📍 موقعك").openPopup();
-          if (Number.isFinite(pos.coords.accuracy)) {
-            accuracyCircle = L.circle([lat,lng], { radius: pos.coords.accuracy }).addTo(map);
-          }
-          map.setView([lat,lng], 16);
-          setTimeout(forceResize, 250);
-        }, (err) => {
-          console.error(err);
-          if (err?.code === 1) {
-            setPermPill("denied");
-            explainLocationDenied();
-          } else {
-            msg.textContent = "تعذر تحديد الموقع الآن. جرّب تاني.";
-          }
-        }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
-      } else {
-        msg.textContent = "جهازك لا يدعم تحديد الموقع.";
-      }
-    });
-
-    myLocBtn.addEventListener("click", () => {
-      msg.textContent = "جارٍ تحديد موقعك…";
-      myLocBtn.disabled = true;
-
-      if (!navigator.geolocation) {
-        myLocBtn.disabled = false;
-        return msg.textContent = "جهازك لا يدعم تحديد الموقع.";
-      }
-
-      // Leaflet locate
-      map.locate({
-        setView: false,
-        watch: false,
-        enableHighAccuracy: true,
-        timeout: 20000,
-        maximumAge: 0
-      });
+      }, (err)=>{
+        console.error(err);
+        if(err?.code === 1){
+          setPermPill("denied");
+          explainLocationDenied();
+        }else{
+          msg.textContent="تعذر تحديد الموقع الآن. جرّب تاني.";
+        }
+      }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
     });
 
     document.getElementById("resetBtn").addEventListener("click", ()=>{
       from=null;to=null;
       fromText.value="";toText.value="";
-      [fromMarker,toMarker,line].forEach(x=>{ if(x) map.removeLayer(x); });
-      fromMarker=toMarker=line=null;
-
-      clearMyLoc();
-
+      [fromMarker,toMarker,line,myMarker].forEach(x=>{ if(x) map.removeLayer(x); });
+      fromMarker=toMarker=line=myMarker=null;
       msg.textContent="";
       contactBox.style.display="none";
       contactBox.innerHTML="";
       updateUI();
-      setTimeout(forceResize, 200);
+      fixMap();
     });
 
     function toWhatsappNumber(phone){
@@ -483,7 +425,7 @@
       dragging = false;
       sheet.classList.remove("dragging");
       render(nearestSnap(current), true);
-      setTimeout(forceResize, 240);
+      setTimeout(()=> fixMap(), 220);
     }
 
     render(current, false);
@@ -500,9 +442,13 @@
       points = getPoints();
       current = clamp(current, points.collapsed, points.expanded);
       render(current, false);
-      setTimeout(forceResize, 240);
+      setTimeout(()=> fixMap(), 220);
     });
 
+    // ✅ Extra safety: when page becomes visible again
+    document.addEventListener("visibilitychange", ()=>{
+      if(!document.hidden) setTimeout(()=> fixMap(), 250);
+    });
   </script>
 </body>
 </html>
