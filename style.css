@@ -17,7 +17,7 @@ html,body{
   height:100%;
   margin:0;
   padding:0;
-  overflow:hidden; /* ✅ مهم للموبايل */
+  overflow:hidden;
 }
 
 body{
@@ -103,7 +103,6 @@ input,select,textarea{
   outline:none;
 }
 textarea{resize:none}
-.hr{height:1px;background:var(--stroke);margin:10px 0}
 
 /* ===== Pills ===== */
 .pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
@@ -127,18 +126,12 @@ textarea{resize:none}
 .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 .actions .btn{flex:1; min-width:140px}
 
-.list{display:grid;gap:12px}
-.ride{display:grid; gap:10px}
-.kv{display:grid;gap:4px}
-.kv b{font-size:13px}
-.kv span{font-size:12px;color:var(--muted)}
-
-/* ===== Map full screen (FIX 100vh mobile) ===== */
+/* ===== Map full screen ===== */
 .map-wrap{
   position:relative;
   width:100%;
   height:calc(100vh - 64px);
-  height:calc(100dvh - 64px); /* ✅ أهم سطر */
+  height:calc(100dvh - 64px);
 }
 #map{
   position:absolute;
@@ -148,30 +141,34 @@ textarea{resize:none}
 }
 .leaflet-container{background:#0a0f16 !important}
 
-/* ===== Bottom sheet (Uber-like) ===== */
+/* ✅ Emoji pin (بدون صور) */
+.pin-emoji{ background: transparent !important; border:0 !important; }
+.pin-bubble{
+  width:44px; height:44px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:24px;
+  background: rgba(12,18,32,.85);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  box-shadow: 0 12px 35px rgba(0,0,0,.45);
+}
+
+/* ===== Bottom sheet ===== */
 .sheet{
   position:absolute;
   left:0; right:0; bottom:0;
   z-index:1000;
-
   border-top-left-radius:22px;
   border-top-right-radius:22px;
-
   padding:14px;
   background: linear-gradient(180deg, rgba(12,18,32,.92), rgba(10,18,34,.82));
   border:1px solid var(--stroke);
   box-shadow: var(--shadow);
-
   max-height:72vh;
-  overflow:hidden; /* ✅ المحتوى هو اللي يسكول */
-
+  overflow:hidden;
   will-change: transform;
-  transform: translateY(0);
-
-  /* ✅ يضمن السحب على الموبايل */
   touch-action:none;
 }
-
 .sheet-handle{
   width:52px;height:5px;border-radius:999px;margin:0 auto 10px;
   background: rgba(255,255,255,.18);
@@ -179,8 +176,6 @@ textarea{resize:none}
   touch-action:none;
 }
 .sheet.dragging .sheet-handle{cursor:grabbing}
-
-/* ✅ السكول يبقى جوه الشيت فقط */
 .sheet-content{
   max-height:calc(72vh - 18px);
   overflow:auto;
@@ -190,11 +185,9 @@ textarea{resize:none}
 }
 
 /* ===== Mobile tweaks ===== */
-@media (max-width: 520px){
+@media (max-width:520px){
   .container{max-width:100%;padding:12px}
   .topbar-inner{padding:10px 12px}
-  .brand h1{font-size:14px}
-  .brand p{font-size:11px}
   .grid2{grid-template-columns:1fr}
   .actions .btn{min-width:0; flex:1 1 48%}
 }
